@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 import { JwtPayload } from '../../plugins/jwt';
 
 const REFRESH_TTL_DAYS = 30;
@@ -11,6 +11,10 @@ const REFRESH_BLACKLIST_PREFIX = 'rt_blacklist:';
 
 export class TokenService {
   constructor(private readonly app: FastifyInstance) {}
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
+  }
 
   /**
    * Buat access token JWT (24h)
@@ -31,11 +35,9 @@ export class TokenService {
 
     await this.app.prisma.refreshToken.create({
       data: {
-        token,
+        token_hash: this.hashToken(token),
         pengguna_id: penggunaId,
         expires_at: expiresAt,
-        ip_address: meta.ip,
-        user_agent: meta.userAgent,
       },
     });
 
@@ -53,24 +55,23 @@ export class TokenService {
     if (blacklisted) return null;
 
     const record = await this.app.prisma.refreshToken.findUnique({
-      where: { token },
+      where: { token_hash: this.hashToken(token) },
       include: {
         pengguna: {
           select: {
             id: true,
             email: true,
             peran: true,
-            is_active: true,
-            deleted_at: true,
+            is_aktif: true,
           },
         },
       },
     });
 
     if (!record) return null;
-    if (record.revoked_at) return null;
+    if (record.is_revoked) return null;
     if (record.expires_at < new Date()) return null;
-    if (!record.pengguna.is_active || record.pengguna.deleted_at) return null;
+    if (!record.pengguna.is_aktif) return null;
 
     return record;
   }
@@ -81,8 +82,8 @@ export class TokenService {
   async revokeRefreshToken(token: string): Promise<void> {
     // Tandai di DB
     await this.app.prisma.refreshToken.updateMany({
-      where: { token, revoked_at: null },
-      data: { revoked_at: new Date() },
+      where: { token_hash: this.hashToken(token), is_revoked: false },
+      data: { is_revoked: true },
     });
 
     // Tambahkan ke blacklist Redis selama 30 hari
@@ -99,21 +100,21 @@ export class TokenService {
    */
   async revokeAllUserTokens(penggunaId: string): Promise<void> {
     const tokens = await this.app.prisma.refreshToken.findMany({
-      where: { pengguna_id: penggunaId, revoked_at: null },
-      select: { token: true },
+      where: { pengguna_id: penggunaId, is_revoked: false },
+      select: { token_hash: true },
     });
 
     await this.app.prisma.refreshToken.updateMany({
-      where: { pengguna_id: penggunaId, revoked_at: null },
-      data: { revoked_at: new Date() },
+      where: { pengguna_id: penggunaId, is_revoked: false },
+      data: { is_revoked: true },
     });
 
     // Blacklist semua token di Redis
     if (tokens.length > 0) {
       const pipeline = this.app.redis.pipeline();
-      for (const { token } of tokens) {
+      for (const { token_hash } of tokens) {
         pipeline.set(
-          `${REFRESH_BLACKLIST_PREFIX}${token}`,
+          `${REFRESH_BLACKLIST_PREFIX}${token_hash}`,
           '1',
           'EX',
           REFRESH_TTL_DAYS * 24 * 60 * 60

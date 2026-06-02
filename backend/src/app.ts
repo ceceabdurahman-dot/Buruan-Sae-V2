@@ -11,6 +11,7 @@ import { prismaPlugin } from './plugins/prisma';
 import { redisPlugin } from './plugins/redis';
 import { minioPlugin } from './plugins/minio';
 import { jwtPlugin } from './plugins/jwt';
+import { httpErrorsPlugin } from './plugins/http-errors';
 import { sanitizePlugin } from './plugins/sanitize';
 import { auditPlugin } from './plugins/audit';
 
@@ -119,6 +120,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   await app.register(redisPlugin);
   await app.register(minioPlugin);
   await app.register(jwtPlugin);
+  await app.register(httpErrorsPlugin);
   await app.register(sanitizePlugin); // XSS sanitization
   await app.register(auditPlugin);    // Audit log untuk endpoint sensitif
 

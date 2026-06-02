@@ -16,7 +16,10 @@ export async function healthRoutes(app: FastifyInstance) {
               status: { type: 'string' },
               timestamp: { type: 'string' },
               version: { type: 'string' },
-              services: { type: 'object' },
+              services: {
+                type: 'object',
+                additionalProperties: { type: 'string' },
+              },
             },
           },
         },

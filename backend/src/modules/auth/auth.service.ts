@@ -201,15 +201,14 @@ export class AuthService {
           { email: dto.identifier },
           { nomor_wa: dto.identifier },
         ],
-        deleted_at: null,
-        is_active: true,
+        is_aktif: true,
       },
       select: {
         id: true,
         email: true,
         peran: true,
         password_hash: true,
-        is_verified: true,
+        is_terverifikasi: true,
         nomor_wa: true,
       },
     });
@@ -225,9 +224,11 @@ export class AuthService {
     }
 
     // Cek verifikasi
-    if (!pengguna.is_verified) {
+    if (!pengguna.is_terverifikasi) {
       // Kirim ulang OTP
-      await this.otpService.sendOtp(pengguna.nomor_wa);
+      if (pengguna.nomor_wa) {
+        await this.otpService.sendOtp(pengguna.nomor_wa);
+      }
       throw {
         statusCode: 403,
         message: 'Akun belum diverifikasi. OTP telah dikirim ulang ke WhatsApp Anda',
@@ -245,10 +246,12 @@ export class AuthService {
       data: {
         pengguna_id: pengguna.id,
         aksi: 'LOGIN',
-        entitas: 'Pengguna',
-        entitas_id: pengguna.id,
+        resource: 'Pengguna',
+        resource_id: pengguna.id,
+        detail: {
+          user_agent: meta.userAgent,
+        },
         ip_address: meta.ip,
-        user_agent: meta.userAgent,
       },
     });
 
