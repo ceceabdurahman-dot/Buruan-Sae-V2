@@ -59,7 +59,7 @@ void main() {
 
     return ProviderScope(
       overrides: [
-        authStateNotifierProvider.overrideWith((_) => mockAuthNotifier),
+        authStateNotifierProvider.overrideWith(() => mockAuthNotifier),
       ],
       child: MaterialApp.router(
         routerConfig: testRouter,

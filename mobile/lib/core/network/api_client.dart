@@ -73,7 +73,7 @@ Future<bool> _refreshToken(Dio dio) async {
 
     // Buat instance Dio baru (tanpa interceptor) untuk refresh
     final refreshDio = Dio(BaseOptions(baseUrl: dio.options.baseUrl));
-    final response = await refreshDio.post('/api/v1/auth/refresh', data: {
+    final response = await refreshDio.post('/auth/refresh', data: {
       'refresh_token': refreshToken,
     });
 

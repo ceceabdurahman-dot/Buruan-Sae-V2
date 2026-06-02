@@ -7,11 +7,15 @@ import { useEffect, useRef } from 'react';
 // NOTE: This component must be loaded with dynamic import + ssr:false
 // ============================================================
 
-interface LahanMapProps {
-  lahan: Array<{
+type LahanMapItem = {
     id: string;
-    nama_lahan: string;
+    nama?: string;
+    nama_lahan?: string;
     status: string;
+    geojson?: {
+      type: string;
+      coordinates: number[][][];
+    } | null;
     koordinat_geojson?: {
       type: string;
       coordinates: number[][][];
@@ -22,7 +26,26 @@ interface LahanMapProps {
       nama_lengkap: string;
     };
     luas_m2?: number;
-  }>;
+  };
+
+interface LahanMapProps {
+  lahan?: LahanMapItem[];
+  geojson?: {
+    type: 'FeatureCollection';
+    features: Array<{
+      type: 'Feature';
+      geometry: {
+        type: string;
+        coordinates: number[][][];
+      } | null;
+      properties?: {
+        id?: string;
+        nama?: string;
+        status?: string;
+        luas_m2?: number;
+      };
+    }>;
+  };
   onSelect?: (lahanId: string) => void;
 }
 
@@ -33,7 +56,7 @@ const STATUS_COLORS: Record<string, string> = {
   NONAKTIF: '#9E9E9E',
 };
 
-export default function LahanMap({ lahan, onSelect }: LahanMapProps) {
+export default function LahanMap({ lahan, geojson, onSelect }: LahanMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
 
@@ -43,7 +66,6 @@ export default function LahanMap({ lahan, onSelect }: LahanMapProps) {
     // Dynamically load Leaflet (SSR-safe)
     const initMap = async () => {
       const L = (await import('leaflet')).default;
-      await import('leaflet/dist/leaflet.css');
 
       // Fix Leaflet default icon path issues in Next.js
       delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -67,21 +89,33 @@ export default function LahanMap({ lahan, onSelect }: LahanMapProps) {
 
       mapInstanceRef.current = map;
 
+      const normalizedLahan: LahanMapItem[] = lahan ?? geojson?.features.map((feature) => ({
+        id: feature.properties?.id ?? '',
+        nama: feature.properties?.nama ?? 'Lahan',
+        status: feature.properties?.status ?? 'AKTIF',
+        luas_m2: feature.properties?.luas_m2,
+        geojson: feature.geometry,
+      })) ?? [];
+
+      const renderedLayers: any[] = [];
+
       // Render lahan
-      lahan.forEach((item) => {
+      normalizedLahan.forEach((item) => {
         const color = STATUS_COLORS[item.status] ?? '#9E9E9E';
+        const nama = item.nama_lahan ?? item.nama ?? 'Lahan';
+        const geometry = item.koordinat_geojson ?? item.geojson;
         const popupContent = `
           <div style="min-width:160px">
-            <strong>${item.nama_lahan}</strong><br/>
+            <strong>${nama}</strong><br/>
             <span style="color:${color};font-weight:600">${item.status.replace('_', ' ')}</span><br/>
             ${item.pemilik?.nama_lengkap ? `Pemilik: ${item.pemilik.nama_lengkap}<br/>` : ''}
             ${item.luas_m2 ? `Luas: ${item.luas_m2} m²` : ''}
           </div>
         `;
 
-        if (item.koordinat_geojson?.coordinates) {
+        if (geometry?.coordinates) {
           // Render polygon
-          const coords = item.koordinat_geojson.coordinates[0].map(
+          const coords = geometry.coordinates[0].map(
             ([lng, lat]: number[]) => [lat, lng] as [number, number]
           );
           const polygon = L.polygon(coords, {
@@ -95,6 +129,7 @@ export default function LahanMap({ lahan, onSelect }: LahanMapProps) {
             polygon.on('click', () => onSelect(item.id));
           }
           polygon.addTo(map);
+          renderedLayers.push(polygon);
         } else if (item.lat && item.lng) {
           // Fallback: point marker
           const marker = L.circleMarker([item.lat, item.lng], {
@@ -109,16 +144,13 @@ export default function LahanMap({ lahan, onSelect }: LahanMapProps) {
             marker.on('click', () => onSelect(item.id));
           }
           marker.addTo(map);
+          renderedLayers.push(marker);
         }
       });
 
       // Fit bounds if we have any lahan
-      if (lahan.length > 0) {
-        const group = L.featureGroup(
-          map
-            .eachLayer((layer: any) => layer)
-            .getLayers?.() ?? []
-        );
+      if (renderedLayers.length > 0) {
+        const group = L.featureGroup(renderedLayers);
         try {
           map.fitBounds(group.getBounds(), { padding: [20, 20] });
         } catch {

@@ -28,8 +28,8 @@ const PERAN_OPTIONS = [
   { value: 'KONSUMEN', label: 'Konsumen' },
   { value: 'UMKM', label: 'UMKM' },
   { value: 'PENGELOLA_WISATA', label: 'Pengelola Wisata' },
-  { value: 'KOORDINATOR', label: 'Koordinator' },
-  { value: 'ADMIN', label: 'Admin' },
+  { value: 'KOORDINATOR_KECAMATAN', label: 'Koordinator Kecamatan' },
+  { value: 'ADMIN_DINAS', label: 'Admin Dinas' },
 ];
 
 export default function PenggunaPage() {

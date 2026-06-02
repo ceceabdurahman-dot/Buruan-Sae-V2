@@ -47,6 +47,7 @@ class _LahanListPageState extends ConsumerState<LahanListPage>
         title: const Text('Lahan Saya'),
         actions: [
           IconButton(
+            key: const Key('fab_tambah_lahan'),
             icon: const Icon(Icons.add),
             onPressed: () => context.push('/lahan/tambah'),
           ),
@@ -54,8 +55,8 @@ class _LahanListPageState extends ConsumerState<LahanListPage>
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(icon: Icon(Icons.list), text: 'Daftar'),
-            Tab(icon: Icon(Icons.map), text: 'Peta'),
+            Tab(key: Key('tab_daftar'), icon: Icon(Icons.list), text: 'Daftar'),
+            Tab(key: Key('tab_peta'), icon: Icon(Icons.map), text: 'Peta'),
           ],
         ),
       ),
@@ -127,6 +128,7 @@ class _PetaTab extends ConsumerWidget {
     final petaAsync = ref.watch(petaLahanProvider);
 
     return Stack(
+      key: const Key('lahan_map_view'),
       children: [
         FlutterMap(
           mapController: mapController,
@@ -174,6 +176,7 @@ class _PetaTab extends ConsumerWidget {
           bottom: 24,
           right: 16,
           child: FloatingActionButton.extended(
+            key: const Key('fab_tambah_lahan'),
             onPressed: () => context.push('/lahan/tambah'),
             icon: const Icon(Icons.add_location_alt),
             label: const Text('Tambah Lahan'),

@@ -47,7 +47,7 @@ final dioProvider = Provider<Dio>((ref) {
             try {
               final refreshDio = Dio(BaseOptions(baseUrl: baseUrl));
               final res = await refreshDio.post(
-                '/api/v1/auth/refresh',
+                '/auth/refresh',
                 data: {'refresh_token': refreshToken},
               );
               final newAccessToken = res.data['data']['access_token'] as String?;

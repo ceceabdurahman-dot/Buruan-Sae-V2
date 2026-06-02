@@ -34,10 +34,8 @@ class _MarketplacePageState extends ConsumerState<MarketplacePage>
 
   @override
   Widget build(BuildContext context) {
-    final produkAsync = ref.watch(daftarProdukProvider(_sort));
+    final produkAsync = ref.watch(daftarProdukProvider(sort: _sort));
     final pesananAsync = ref.watch(daftarPesananSayaProvider);
-    final theme = Theme.of(context);
-
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(

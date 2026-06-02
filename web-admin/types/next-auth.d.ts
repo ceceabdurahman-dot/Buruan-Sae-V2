@@ -10,13 +10,13 @@ declare module 'next-auth' {
   interface Session {
     user: {
       id: string;
-      peran: 'ADMIN' | 'SUPER_ADMIN';
+      peran: 'ADMIN_DINAS' | 'SUPER_ADMIN';
       accessToken: string;
     } & DefaultSession['user'];
   }
 
   interface User extends DefaultUser {
-    peran: 'ADMIN' | 'SUPER_ADMIN';
+    peran: 'ADMIN_DINAS' | 'SUPER_ADMIN';
     accessToken: string;
     refreshToken: string;
   }
@@ -25,7 +25,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT extends DefaultJWT {
     id: string;
-    peran: 'ADMIN' | 'SUPER_ADMIN';
+    peran: 'ADMIN_DINAS' | 'SUPER_ADMIN';
     accessToken: string;
     refreshToken: string;
   }

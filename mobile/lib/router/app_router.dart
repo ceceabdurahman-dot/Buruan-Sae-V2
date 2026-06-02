@@ -67,7 +67,7 @@ GoRouter appRouter(AppRouterRef ref) {
       GoRoute(
         path: '/auth/otp',
         builder: (context, state) => OtpPage(
-          nomor: state.uri.queryParameters['nomor'] ?? '',
+          nomorWa: state.uri.queryParameters['nomor'] ?? '',
         ),
       ),
 

@@ -16,26 +16,26 @@ const BULAN_INDO = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt',
 export default function DashboardPage() {
   const { data: kpi, isLoading: loadingKpi } = useQuery({
     queryKey: ['dashboard-kpi'],
-    queryFn: () => apiClient.get('/api/v1/dashboard/kpi').then((r) => r.data),
+    queryFn: () => apiClient.get('/dashboard/kpi').then((r) => r.data),
     refetchInterval: 5 * 60 * 1000, // refresh 5 menit
   });
 
   const { data: produksiChart } = useQuery({
     queryKey: ['dashboard-produksi', new Date().getFullYear()],
     queryFn: () =>
-      apiClient.get('/api/v1/dashboard/produksi-per-kecamatan', {
+      apiClient.get('/dashboard/produksi-per-kecamatan', {
         params: { tahun: new Date().getFullYear() },
       }).then((r) => r.data),
   });
 
   const { data: topPetani } = useQuery({
     queryKey: ['dashboard-top-petani'],
-    queryFn: () => apiClient.get('/api/v1/dashboard/top-petani').then((r) => r.data),
+    queryFn: () => apiClient.get('/dashboard/top-petani').then((r) => r.data),
   });
 
   const { data: distribusiLahan } = useQuery({
     queryKey: ['dashboard-distribusi'],
-    queryFn: () => apiClient.get('/api/v1/dashboard/distribusi-lahan').then((r) => r.data),
+    queryFn: () => apiClient.get('/dashboard/distribusi-lahan').then((r) => r.data),
   });
 
   if (loadingKpi) return <DashboardSkeleton />;

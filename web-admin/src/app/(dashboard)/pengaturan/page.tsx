@@ -69,7 +69,7 @@ export default function PengaturanPage() {
           <p className="text-xs text-green-700 mt-0.5">
             Peran:{' '}
             <span className="font-semibold">
-              {session?.user?.peran === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin'}
+              {session?.user?.peran === 'SUPER_ADMIN' ? 'Super Admin' : 'Admin Dinas'}
             </span>
           </p>
         </div>

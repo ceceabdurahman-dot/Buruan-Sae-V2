@@ -12,7 +12,7 @@ part 'produksi_provider.g.dart';
 @riverpod
 Future<Map<String, dynamic>> catatanPanen(CatatanPanenRef ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/produksi/catatan', queryParameters: {
+  final response = await dio.get('/produksi/catatan', queryParameters: {
     'limit': 20,
   });
   return response.data as Map<String, dynamic>;
@@ -24,7 +24,7 @@ Future<Map<String, dynamic>> ringkasanProduksi(
   int tahun,
 ) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/produksi/ringkasan', queryParameters: {
+  final response = await dio.get('/produksi/ringkasan', queryParameters: {
     'tahun': tahun,
   });
   return response.data as Map<String, dynamic>;
@@ -33,14 +33,14 @@ Future<Map<String, dynamic>> ringkasanProduksi(
 @riverpod
 Future<List<Map<String, dynamic>>> komoditas(KomoditasRef ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/produksi/komoditas');
+  final response = await dio.get('/produksi/komoditas');
   return (response.data as List).cast<Map<String, dynamic>>();
 }
 
 @riverpod
 Future<List<Map<String, dynamic>>> lahanSingkat(LahanSingkatRef ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/lahan', queryParameters: {
+  final response = await dio.get('/lahan', queryParameters: {
     'limit': 100,
     'status': 'AKTIF',
   });
@@ -61,7 +61,7 @@ class TambahPanenNotifier extends _$TambahPanenNotifier {
     state = const AsyncLoading();
     try {
       final dio = ref.read(dioProvider);
-      await dio.post('/api/v1/produksi/catatan', data: data);
+      await dio.post('/produksi/catatan', data: data);
       state = const AsyncData(null);
       ref.invalidate(catatanPanenProvider);
       ref.invalidate(ringkasanProduksiProvider);

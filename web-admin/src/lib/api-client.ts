@@ -14,8 +14,8 @@ export const apiClient = axios.create({
 // Tambahkan token dari NextAuth secara otomatis
 apiClient.interceptors.request.use(async (config) => {
   const session = await getSession();
-  if (session?.accessToken) {
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
+  if (session?.user?.accessToken) {
+    config.headers.Authorization = `Bearer ${session.user.accessToken}`;
   }
   return config;
 });

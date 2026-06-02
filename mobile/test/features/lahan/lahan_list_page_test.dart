@@ -2,47 +2,58 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
 
 import 'package:buruan_sae/features/lahan/data/providers/lahan_provider.dart';
 import 'package:buruan_sae/features/lahan/domain/models/lahan_model.dart';
 import 'package:buruan_sae/features/lahan/presentation/pages/lahan_list_page.dart';
 
-import 'lahan_list_page_test.mocks.dart';
-
 // ============================================================
 // Flutter Widget Test: LahanListPage
 // ============================================================
 
-@GenerateMocks([DaftarLahanNotifier])
 void main() {
   // Data mock untuk lahan
-  final mockLahanList = [
+  final mockLahanList = <LahanSingkat>[
     LahanSingkat(
       id: 'lahan-1',
       nama: 'Kebun Sayur RT 01',
+      alamat: 'Jl. Kebun 1',
       kecamatan: 'Cidadap',
       kelurahan: 'Hegarmanah',
-      luasM2: 250,
+      luas_m2: 250,
       status: 'AKTIF',
-      komoditasUtama: ['Bayam', 'Kangkung'],
-      createdAt: DateTime(2026, 1, 15),
+      created_at: '2026-01-15T00:00:00.000Z',
     ),
     LahanSingkat(
       id: 'lahan-2',
       nama: 'Taman Edukasi Ciumbuleuit',
+      alamat: 'Jl. Taman 2',
       kecamatan: 'Cidadap',
       kelurahan: 'Ciumbuleuit',
-      luasM2: 400,
+      luas_m2: 400,
       status: 'DALAM_REVIEW',
-      komoditasUtama: ['Tomat', 'Cabai'],
-      createdAt: DateTime(2026, 2, 10),
+      created_at: '2026-02-10T00:00:00.000Z',
     ),
   ];
 
+  final mockLahanResponse = DaftarLahanResponse(
+    data: mockLahanList,
+    total: mockLahanList.length,
+    page: 1,
+    limit: 20,
+    totalHalaman: 1,
+  );
+
+  const emptyLahanResponse = DaftarLahanResponse(
+    data: [],
+    total: 0,
+    page: 1,
+    limit: 20,
+    totalHalaman: 0,
+  );
+
   Widget buildLahanListPage({
-    AsyncValue<List<LahanSingkat>> lahanState = const AsyncValue.loading(),
+    AsyncValue<DaftarLahanResponse> lahanState = const AsyncValue.loading(),
   }) {
     final testRouter = GoRouter(
       initialLocation: '/lahan',
@@ -66,7 +77,13 @@ void main() {
 
     return ProviderScope(
       overrides: [
-        daftarLahanProvider.overrideWith((_) => lahanState),
+        daftarLahanProvider.overrideWith((_) => lahanState.valueOrNull ?? const DaftarLahanResponse(
+          data: [],
+          total: 0,
+          page: 1,
+          limit: 20,
+          totalHalaman: 0,
+        )),
       ],
       child: MaterialApp.router(
         routerConfig: testRouter,
@@ -116,7 +133,7 @@ void main() {
   group('LahanListPage — Render Data', () {
     testWidgets('harus menampilkan semua lahan dalam daftar', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -126,7 +143,7 @@ void main() {
 
     testWidgets('harus menampilkan kecamatan dan luas pada setiap kartu', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -136,7 +153,7 @@ void main() {
 
     testWidgets('harus menampilkan badge status lahan', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -146,7 +163,7 @@ void main() {
 
     testWidgets('harus menampilkan komoditas utama pada kartu lahan', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -156,7 +173,7 @@ void main() {
 
     testWidgets('harus menampilkan empty state jika tidak ada lahan', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: const AsyncValue.data([]),
+        lahanState: const AsyncValue.data(emptyLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -172,7 +189,7 @@ void main() {
   group('LahanListPage — Tab Navigasi', () {
     testWidgets('harus ada dua tab: Daftar dan Peta', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -182,7 +199,7 @@ void main() {
 
     testWidgets('tap tab Peta menampilkan FlutterMap', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -195,7 +212,7 @@ void main() {
 
     testWidgets('tap kartu lahan navigasi ke halaman detail', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -213,7 +230,7 @@ void main() {
   group('LahanListPage — FAB Tambah Lahan', () {
     testWidgets('harus ada FloatingActionButton tambah lahan', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -222,7 +239,7 @@ void main() {
 
     testWidgets('tap FAB navigasi ke halaman tambah lahan', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 
@@ -240,7 +257,7 @@ void main() {
   group('LahanListPage — Pull to Refresh', () {
     testWidgets('harus mendukung RefreshIndicator pada tab daftar', (tester) async {
       await tester.pumpWidget(buildLahanListPage(
-        lahanState: AsyncValue.data(mockLahanList),
+        lahanState: AsyncValue.data(mockLahanResponse),
       ));
       await tester.pumpAndSettle();
 

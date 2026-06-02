@@ -14,7 +14,7 @@ part 'lahan_provider.g.dart';
 @riverpod
 Future<DaftarLahanResponse> daftarLahan(DaftarLahanRef ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/lahan', queryParameters: {
+  final response = await dio.get('/lahan', queryParameters: {
     'limit': 50,
   });
   return DaftarLahanResponse.fromJson(response.data);
@@ -23,14 +23,14 @@ Future<DaftarLahanResponse> daftarLahan(DaftarLahanRef ref) async {
 @riverpod
 Future<Map<String, dynamic>> petaLahan(PetaLahanRef ref) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/lahan/peta');
+  final response = await dio.get('/lahan/peta');
   return response.data as Map<String, dynamic>;
 }
 
 @riverpod
 Future<LahanDetail> detailLahan(DetailLahanRef ref, String lahanId) async {
   final dio = ref.watch(dioProvider);
-  final response = await dio.get('/api/v1/lahan/$lahanId');
+  final response = await dio.get('/lahan/$lahanId');
   return LahanDetail.fromJson(response.data);
 }
 
@@ -47,7 +47,7 @@ class TambahLahanNotifier extends _$TambahLahanNotifier {
     state = const AsyncLoading();
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.post('/api/v1/lahan', data: data);
+      final response = await dio.post('/lahan', data: data);
       state = const AsyncData(null);
       ref.invalidate(daftarLahanProvider);
       return response.data['id'] as String;

@@ -15,45 +15,50 @@ const _storage = FlutterSecureStorage();
 // ============================================================
 
 class AuthState {
+  final bool isLoading;
   final bool isAuthenticated;
   final String? peran;
   final String? penggunaId;
   final String? namaLengkap;
   final int? totalPoin;
-  final String? error;
+  final String? errorMessage;
 
   const AuthState({
+    this.isLoading = false,
     required this.isAuthenticated,
     this.peran,
     this.penggunaId,
     this.namaLengkap,
     this.totalPoin,
-    this.error,
+    this.errorMessage,
   });
 
   const AuthState.unauthenticated()
-      : isAuthenticated = false,
+      : isLoading = false,
+        isAuthenticated = false,
         peran = null,
         penggunaId = null,
         namaLengkap = null,
         totalPoin = null,
-        error = null;
+        errorMessage = null;
 
   AuthState copyWith({
+    bool? isLoading,
     bool? isAuthenticated,
     String? peran,
     String? penggunaId,
     String? namaLengkap,
     int? totalPoin,
-    String? error,
+    String? errorMessage,
   }) {
     return AuthState(
+      isLoading: isLoading ?? this.isLoading,
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       peran: peran ?? this.peran,
       penggunaId: penggunaId ?? this.penggunaId,
       namaLengkap: namaLengkap ?? this.namaLengkap,
       totalPoin: totalPoin ?? this.totalPoin,
-      error: error,
+      errorMessage: errorMessage,
     );
   }
 }
@@ -92,16 +97,16 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     required String nik,
     required String namaLengkap,
     required String nomorWa,
-    required String email,
+    String email = '',
     required String password,
     required String peran,
-    required bool consentDataPribadi,
-    required bool consentPublikasiData,
+    bool consentDataPribadi = true,
+    bool consentPublikasiData = false,
   }) async {
-    state = state.copyWith(error: null);
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final dio = ref.read(dioProvider);
-      await dio.post('/api/v1/auth/register', data: {
+      await dio.post('/auth/register', data: {
         'nik': nik,
         'nama_lengkap': namaLengkap,
         'nomor_wa': nomorWa,
@@ -113,68 +118,84 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       });
       // Register sukses → OTP dikirim ke WA
     } catch (e) {
-      state = state.copyWith(error: _parseError(e));
+      state = state.copyWith(errorMessage: _parseError(e));
       rethrow;
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
   // ── OTP ─────────────────────────────────────────────────────
 
   Future<void> kirimOtp(String nomorWa) async {
-    state = state.copyWith(error: null);
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final dio = ref.read(dioProvider);
-      await dio.post('/api/v1/auth/otp/kirim', data: {'nomor_wa': nomorWa});
+      await dio.post('/auth/otp/kirim', data: {'nomor_wa': nomorWa});
     } catch (e) {
-      state = state.copyWith(error: _parseError(e));
+      state = state.copyWith(errorMessage: _parseError(e));
       rethrow;
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
-  Future<void> verifikasiOtp(String nomorWa, String kodeOtp) async {
-    state = state.copyWith(error: null);
+  Future<void> verifikasiOtp({
+    required String nomorWa,
+    required String kodeOtp,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.post('/api/v1/auth/otp/verify', data: {
+      final response = await dio.post('/auth/otp/verify', data: {
         'nomor_wa': nomorWa,
         'kode_otp': kodeOtp,
       });
       await _simpanToken(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
-      state = state.copyWith(error: _parseError(e));
+      state = state.copyWith(errorMessage: _parseError(e));
       rethrow;
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
   // ── Login ───────────────────────────────────────────────────
 
   Future<void> loginWithOtp(String nomorWa, String kodeOtp) async {
-    state = state.copyWith(error: null);
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.post('/api/v1/auth/otp/verify', data: {
+      final response = await dio.post('/auth/otp/verify', data: {
         'nomor_wa': nomorWa,
         'kode_otp': kodeOtp,
       });
       await _simpanToken(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
-      state = state.copyWith(error: _parseError(e));
+      state = state.copyWith(errorMessage: _parseError(e));
       rethrow;
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
-  Future<void> loginWithPassword(String identifier, String password) async {
-    state = state.copyWith(error: null);
+  Future<void> loginWithPassword({
+    required String identifier,
+    required String password,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final dio = ref.read(dioProvider);
-      final response = await dio.post('/api/v1/auth/login', data: {
+      final response = await dio.post('/auth/login', data: {
         'identifier': identifier,
         'password': password,
       });
       await _simpanToken(response.data['data'] as Map<String, dynamic>);
     } catch (e) {
-      state = state.copyWith(error: _parseError(e));
+      state = state.copyWith(errorMessage: _parseError(e));
       rethrow;
+    } finally {
+      state = state.copyWith(isLoading: false);
     }
   }
 
@@ -185,7 +206,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
       final refreshToken = await _storage.read(key: 'refresh_token');
       if (refreshToken != null) {
         final dio = ref.read(dioProvider);
-        await dio.post('/api/v1/auth/logout',
+        await dio.post('/auth/logout',
             data: {'refresh_token': refreshToken});
       }
     } catch (_) {
@@ -230,6 +251,7 @@ class AuthStateNotifier extends _$AuthStateNotifier {
     }
 
     state = AuthState(
+      isLoading: false,
       isAuthenticated: true,
       peran: peran,
       penggunaId: penggunaId,

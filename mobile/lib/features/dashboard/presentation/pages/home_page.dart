@@ -114,7 +114,7 @@ class HomePage extends ConsumerWidget {
                           icon: '🗺️',
                           label: 'Lahan',
                           value: daftarLahan.when(
-                            data: (list) => '${list.length}',
+                            data: (response) => '${response.data.length}',
                             loading: () => '...',
                             error: (_, __) => '-',
                           ),
@@ -129,8 +129,14 @@ class HomePage extends ConsumerWidget {
                           label: 'Panen ${tahunIni}',
                           value: ringkasan.when(
                             data: (data) {
-                              final total = data.fold<double>(
-                                0, (sum, r) => sum + (r['total_kg'] as num).toDouble());
+                              final rows = data['data'];
+                              final total = rows is List
+                                  ? rows.fold<double>(
+                                      0,
+                                      (sum, r) =>
+                                          sum + ((r as Map)['total_kg'] as num).toDouble(),
+                                    )
+                                  : ((data['total_kg'] as num?)?.toDouble() ?? 0);
                               return '${total.toStringAsFixed(0)} kg';
                             },
                             loading: () => '...',
@@ -179,13 +185,13 @@ class HomePage extends ConsumerWidget {
                   daftarLahan.when(
                     loading: () => const _LahanSkeleton(),
                     error: (e, _) => _ErrorCard(message: e.toString()),
-                    data: (list) => list.isEmpty
+                    data: (response) => response.data.isEmpty
                         ? _EmptyLahan(onTap: () => context.go('/lahan'))
                         : Column(
-                            children: list.take(3).map((l) => _LahanCard(
+                            children: response.data.take(3).map((l) => _LahanCard(
                               nama: l.nama,
                               lokasi: '${l.kelurahan}, ${l.kecamatan}',
-                              luas: l.luasM2,
+                              luas: l.luas_m2,
                               status: l.status,
                               onTap: () => context.go('/lahan/${l.id}'),
                             )).toList(),

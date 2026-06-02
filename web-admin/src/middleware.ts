@@ -17,10 +17,10 @@ export default withAuth(
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
 
-    // Cek role ADMIN / SUPER_ADMIN untuk halaman dashboard
+    // Cek role ADMIN_DINAS / SUPER_ADMIN untuk halaman dashboard
     if (!pathname.startsWith('/auth/') && token) {
       const peran = token.peran as string | undefined;
-      if (!peran || !['ADMIN', 'SUPER_ADMIN'].includes(peran)) {
+      if (!peran || !['ADMIN_DINAS', 'SUPER_ADMIN'].includes(peran)) {
         return NextResponse.redirect(new URL('/auth/login?error=Unauthorized', req.url));
       }
     }
