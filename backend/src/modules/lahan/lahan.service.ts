@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 // ============================================================
@@ -310,39 +311,77 @@ export class LahanService {
    * GeoJSON semua lahan aktif untuk peta
    */
   async getPetaLahan(kecamatan?: string) {
-    const whereClause = kecamatan
-      ? `AND kecamatan = '${kecamatan.replace(/'/g, "''")}'`
-      : '';
-
-    const result = await this.app.prisma.$queryRaw<
-      { id: string; nama: string; kecamatan: string; luas_m2: number; feature: string }[]
-    >`
-      SELECT
-        id::text,
-        nama,
-        kecamatan,
-        luas_m2::float,
-        json_build_object(
-          'type', 'Feature',
-          'geometry', ST_AsGeoJSON(geom)::json,
-          'properties', json_build_object(
-            'id', id::text,
-            'nama', nama,
-            'kecamatan', kecamatan,
-            'kelurahan', kelurahan,
-            'luas_m2', luas_m2,
-            'status', status
-          )
-        )::text as feature
-      FROM "Lahan"
-      WHERE status = 'AKTIF'
-      AND geom IS NOT NULL
-      ${this.app.prisma.$queryRaw`${whereClause}`}
+    const geomColumn = await this.app.prisma.$queryRaw<{ exists: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'lahan'
+          AND column_name = 'geom'
+      ) AS exists
     `;
+
+    if (geomColumn[0]?.exists) {
+      const kecamatanFilter = kecamatan
+        ? Prisma.sql`AND kecamatan = ${kecamatan}`
+        : Prisma.empty;
+
+      const result = await this.app.prisma.$queryRaw<{ feature: unknown }[]>`
+        SELECT
+          json_build_object(
+            'type', 'Feature',
+            'geometry', ST_AsGeoJSON(geom)::json,
+            'properties', json_build_object(
+              'id', id::text,
+              'nama', nama,
+              'kecamatan', kecamatan,
+              'kelurahan', kelurahan,
+              'luas_m2', luas_m2,
+              'status', status
+            )
+          ) AS feature
+        FROM lahan
+        WHERE status = 'AKTIF'
+          AND geom IS NOT NULL
+          ${kecamatanFilter}
+      `;
+
+      return {
+        type: 'FeatureCollection',
+        features: result.map((row) => row.feature),
+      };
+    }
+
+    const data = await this.app.prisma.lahan.findMany({
+      where: {
+        status: 'AKTIF',
+        ...(kecamatan ? { kecamatan } : {}),
+      },
+      select: {
+        id: true,
+        nama: true,
+        kecamatan: true,
+        kelurahan: true,
+        luas_m2: true,
+        status: true,
+      },
+      orderBy: { created_at: 'desc' },
+    });
 
     return {
       type: 'FeatureCollection',
-      features: result.map((r) => JSON.parse(r.feature)),
+      features: data.map((lahan) => ({
+        type: 'Feature',
+        geometry: null,
+        properties: {
+          id: lahan.id,
+          nama: lahan.nama,
+          kecamatan: lahan.kecamatan,
+          kelurahan: lahan.kelurahan,
+          luas_m2: lahan.luas_m2,
+          status: lahan.status,
+        },
+      })),
     };
   }
 }

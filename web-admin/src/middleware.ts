@@ -33,6 +33,7 @@ export default withAuth(
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl;
         if (pathname === '/') return true;
+        if (pathname === '/peta-lahan') return true;
         if (pathname.startsWith('/auth/')) return true;
         // Semua route lain butuh token
         return !!token;
