@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 
 // ============================================================
 // Halaman Login — Web Admin Buruan Sae 2.0
@@ -30,7 +29,15 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError('Email/nomor WA atau password salah. Periksa kembali.');
+        const backendUnavailable = /ECONNREFUSED|fetch failed|Internal Server Error/i.test(result.error);
+
+        if (backendUnavailable) {
+          setError('Backend API belum aktif di http://localhost:3000. Jalankan backend lalu coba login lagi.');
+        } else if (result.error.includes('Akses ditolak')) {
+          setError(result.error);
+        } else {
+          setError('Email/nomor WA atau password salah. Periksa kembali.');
+        }
       } else {
         router.push('/dashboard');
         router.refresh();

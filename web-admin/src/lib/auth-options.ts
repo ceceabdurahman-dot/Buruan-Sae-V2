@@ -2,7 +2,7 @@ import type { AuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import axios from 'axios';
 
-const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:3001';
+const API_BASE = process.env.API_BASE_URL ?? 'http://localhost:3000';
 const ADMIN_ROLES = ['ADMIN_DINAS', 'SUPER_ADMIN'] as const;
 
 function decodeJwtPayload(token: string): Record<string, unknown> {
