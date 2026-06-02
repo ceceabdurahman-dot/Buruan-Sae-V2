@@ -72,49 +72,52 @@ const NAV_LINKS = [
   { href: '#edukasi', label: 'Edukasi' },
 ];
 
-// ── Custom hook: Intersection Observer ──────────────────────
-function useInView<T extends HTMLElement = HTMLDivElement>(options?: IntersectionObserverInit) {
+// ── Scroll-triggered visibility hook ────────────────────────
+function useScrollReveal<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null);
-  const [isVisible, setIsVisible] = useState(false);
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setIsVisible(true);
-        observer.unobserve(el);
-      }
-    }, { threshold: 0.15, ...options });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setRevealed(true);
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -40px 0px' },
+    );
 
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
 
-  return { ref, isVisible };
+  return { ref, revealed };
 }
 
 // ── Animated counter ────────────────────────────────────────
-function AnimatedCounter({ target, isVisible }: { target: number; isVisible: boolean }) {
+function AnimatedCounter({ target, active }: { target: number; active: boolean }) {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!isVisible) return;
+    if (!active) return;
     let frame: number;
     const duration = 1200;
     const start = performance.now();
 
     function step(now: number) {
       const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
       setCount(Math.round(eased * target));
       if (progress < 1) frame = requestAnimationFrame(step);
     }
 
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [isVisible, target]);
+  }, [active, target]);
 
   return <>{count}</>;
 }
@@ -126,21 +129,27 @@ function AnimatedCounter({ target, isVisible }: { target: number; isVisible: boo
 export default function PublicHomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const heroSection = useInView();
-  const modulesSection = useInView();
-  const ecoSection = useInView();
-  const ctaSection = useInView();
-  const statsSection = useInView<HTMLDListElement>();
+  const modulesReveal = useScrollReveal();
+  const ecoReveal = useScrollReveal();
+  const ctaReveal = useScrollReveal();
+  const statsReveal = useScrollReveal<HTMLDListElement>();
+
+  // Mounted state — trigger hero animation after hydration
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   // Track header scroll state
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on route/anchor navigation
   const closeMobile = useCallback(() => setMobileMenuOpen(false), []);
 
   // Lock body scroll when mobile menu is open
@@ -150,16 +159,18 @@ export default function PublicHomePage() {
   }, [mobileMenuOpen]);
 
   return (
-    <main className="min-h-screen bg-white text-gray-900">
+    <main className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
       {/* ── Header ──────────────────────────────────────────── */}
       <header
-        className={`sticky top-0 z-50 border-b bg-white/95 backdrop-blur-md transition-shadow duration-300 ${
-          scrolled ? 'border-gray-200 shadow-sm' : 'border-transparent'
+        className={`sticky top-0 z-50 bg-white/95 backdrop-blur-md transition-all duration-300 ${
+          scrolled
+            ? 'border-b border-gray-200 shadow-sm shadow-gray-200/50'
+            : 'border-b border-transparent'
         }`}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="group flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-bs-hijau to-bs-hijau-900 text-white shadow-md shadow-bs-hijau/20 transition-transform group-hover:scale-105">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-bs-hijau to-bs-hijau-900 text-white shadow-md shadow-bs-hijau/25 transition-transform duration-200 group-hover:scale-105">
               <Leaf className="h-5 w-5" aria-hidden="true" />
             </span>
             <span>
@@ -174,7 +185,7 @@ export default function PublicHomePage() {
               <a
                 key={link.href}
                 href={link.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-bs-hijau-50 hover:text-bs-hijau"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors duration-200 hover:bg-bs-hijau-50 hover:text-bs-hijau"
               >
                 {link.label}
               </a>
@@ -184,12 +195,12 @@ export default function PublicHomePage() {
           <div className="flex items-center gap-3">
             <Link
               href="/auth/login"
-              className="hidden h-10 items-center justify-center rounded-lg bg-gradient-to-r from-bs-hijau to-bs-hijau-700 px-5 text-sm font-semibold text-white shadow-md shadow-bs-hijau/20 transition-all hover:shadow-lg hover:shadow-bs-hijau/30 hover:brightness-110 sm:inline-flex"
+              className="hidden h-10 items-center justify-center rounded-lg bg-gradient-to-r from-bs-hijau to-bs-hijau-700 px-5 text-sm font-semibold text-white shadow-md shadow-bs-hijau/20 transition-all duration-200 hover:shadow-lg hover:shadow-bs-hijau/30 hover:brightness-110 sm:inline-flex"
             >
               Masuk Admin
             </Link>
 
-            {/* Hamburger */}
+            {/* Hamburger — mobile only */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-600 transition-colors hover:bg-gray-100 md:hidden"
@@ -200,9 +211,9 @@ export default function PublicHomePage() {
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu Dropdown */}
         {mobileMenuOpen && (
-          <div className="animate-slide-down border-t border-gray-100 bg-white md:hidden">
+          <div className="animate-slide-down border-t border-gray-100 bg-white shadow-lg md:hidden">
             <nav className="mx-auto max-w-7xl space-y-1 px-4 py-4">
               {NAV_LINKS.map((link) => (
                 <a
@@ -218,7 +229,7 @@ export default function PublicHomePage() {
                 <Link
                   href="/auth/login"
                   onClick={closeMobile}
-                  className="flex h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-bs-hijau to-bs-hijau-700 text-sm font-semibold text-white"
+                  className="flex h-11 w-full items-center justify-center rounded-lg bg-gradient-to-r from-bs-hijau to-bs-hijau-700 text-sm font-semibold text-white shadow-md"
                 >
                   Masuk Admin
                   <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -230,7 +241,7 @@ export default function PublicHomePage() {
       </header>
 
       {/* ── Hero Section ────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b border-gray-200 bg-gradient-to-b from-bs-hijau-50/80 via-white to-white">
+      <section className="relative overflow-hidden border-b border-gray-100 bg-gradient-to-b from-bs-hijau-50/80 via-white to-white">
         {/* Decorative floating blobs */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
           <div className="absolute -left-32 -top-32 h-96 w-96 animate-float rounded-full bg-gradient-to-br from-bs-hijau-100/60 to-bs-hijau-200/30 blur-3xl" />
@@ -238,25 +249,26 @@ export default function PublicHomePage() {
           <div className="absolute bottom-0 left-1/3 h-64 w-64 animate-float rounded-full bg-gradient-to-br from-emerald-100/40 to-teal-100/20 blur-3xl" style={{ animationDelay: '2s' }} />
         </div>
 
-        <div
-          ref={heroSection.ref}
-          className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1.02fr_0.98fr] lg:px-8"
-        >
-          {/* Left: Copy */}
-          <div className={`max-w-3xl transition-all duration-700 ${heroSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}>
+        <div className="relative mx-auto grid min-h-[calc(100vh-4rem)] max-w-7xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:px-8">
+          {/* Left column — copy */}
+          <div
+            className={`max-w-2xl transition-all duration-700 ease-out ${
+              mounted ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
+            }`}
+          >
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-bs-hijau-200 bg-bs-hijau-50 px-4 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-bs-hijau animate-pulse" />
+              <span className="h-2 w-2 animate-pulse rounded-full bg-bs-hijau" />
               <span className="text-xs font-semibold text-bs-hijau-800">Sistem Terbuka & Terukur</span>
             </div>
 
-            <h1 className="max-w-4xl text-4xl font-bold leading-tight text-gray-950 sm:text-5xl lg:text-6xl">
+            <h1 className="text-3xl font-bold leading-tight tracking-tight text-gray-950 sm:text-4xl md:text-5xl lg:text-6xl">
               Platform publik untuk{' '}
               <span className="bg-gradient-to-r from-bs-hijau to-bs-hijau-600 bg-clip-text text-transparent">
                 ekosistem pertanian
               </span>{' '}
               perkotaan Bandung.
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-gray-600 sm:text-lg">
+            <p className="mt-5 max-w-xl text-base leading-7 text-gray-600 sm:text-lg">
               Buruan Sae 2.0 menghubungkan peta lahan, produksi komunitas, UMKM,
               agrowisata, dan edukasi dalam satu sistem terbuka yang terukur.
             </p>
@@ -264,14 +276,14 @@ export default function PublicHomePage() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <a
                 href="#peta"
-                className="group inline-flex h-12 items-center justify-center rounded-xl bg-gradient-to-r from-bs-hijau to-bs-hijau-700 px-6 text-sm font-semibold text-white shadow-lg shadow-bs-hijau/25 transition-all hover:shadow-xl hover:shadow-bs-hijau/30 hover:brightness-110"
+                className="group inline-flex h-12 items-center justify-center rounded-xl bg-gradient-to-r from-bs-hijau to-bs-hijau-700 px-6 text-sm font-semibold text-white shadow-lg shadow-bs-hijau/25 transition-all duration-200 hover:shadow-xl hover:shadow-bs-hijau/30 hover:brightness-110 active:scale-[0.98]"
               >
                 Lihat Portal Publik
-                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
               </a>
               <a
                 href="#ekosistem"
-                className="inline-flex h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-6 text-sm font-semibold text-gray-800 shadow-sm transition-all hover:border-bs-hijau hover:text-bs-hijau hover:shadow-md"
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-gray-300 bg-white px-6 text-sm font-semibold text-gray-800 shadow-sm transition-all duration-200 hover:border-bs-hijau hover:text-bs-hijau hover:shadow-md active:scale-[0.98]"
               >
                 Pelajari Ekosistem
               </a>
@@ -279,35 +291,33 @@ export default function PublicHomePage() {
 
             {/* Impact Stats */}
             <dl
-              ref={statsSection.ref}
-              className="mt-10 grid max-w-xl grid-cols-3 gap-3"
+              ref={statsReveal.ref}
+              className="mt-10 grid max-w-md grid-cols-3 gap-4"
             >
               {impactStats.map((stat, i) => (
                 <div
                   key={stat.label}
-                  className={`border-l-2 border-bs-hijau pl-4 transition-all duration-500 ${
-                    statsSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'
-                  }`}
-                  style={{ transitionDelay: `${(i + 1) * 150}ms` }}
+                  className="border-l-2 border-bs-hijau pl-4"
                 >
                   <dt className="text-xs leading-4 text-gray-500">{stat.label}</dt>
-                  <dd className="mt-1 text-2xl font-bold text-gray-950">
-                    <AnimatedCounter target={stat.value} isVisible={statsSection.isVisible} />
+                  <dd className="mt-1 text-2xl font-bold tabular-nums text-gray-950">
+                    <AnimatedCounter target={stat.value} active={statsReveal.revealed} />
                   </dd>
                 </div>
               ))}
             </dl>
           </div>
 
-          {/* Right: Map Illustration */}
+          {/* Right column — Map illustration */}
           <div
             id="peta"
-            className={`relative transition-all delay-200 duration-700 ${
-              heroSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-12 opacity-0'
+            className={`relative transition-all delay-300 duration-700 ease-out ${
+              mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'
             }`}
           >
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-bs-hijau-900/10">
-              <div className="flex h-12 items-center justify-between border-b border-gray-200 px-4">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl shadow-gray-300/30">
+              {/* Map header bar */}
+              <div className="flex h-12 items-center justify-between border-b border-gray-100 bg-gray-50/50 px-4">
                 <div className="flex items-center gap-2">
                   <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-bs-hijau" />
                   <span className="text-sm font-semibold text-gray-900">Peta Lahan Kota</span>
@@ -317,8 +327,12 @@ export default function PublicHomePage() {
                 </span>
               </div>
 
-              <div className="relative aspect-[4/3] bg-gradient-to-br from-bs-hijau-50 to-emerald-50">
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(45,125,50,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(45,125,50,0.08)_1px,transparent_1px)] bg-[size:36px_36px]" />
+              {/* Map content */}
+              <div className="relative aspect-[4/3] bg-gradient-to-br from-bs-hijau-50 to-emerald-50/50">
+                {/* Grid pattern */}
+                <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(45,125,50,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(45,125,50,0.06)_1px,transparent_1px)] bg-[size:36px_36px]" />
+
+                {/* SVG illustration */}
                 <svg className="absolute inset-0 h-full w-full" viewBox="0 0 560 420" role="img" aria-label="Ilustrasi peta lahan publik Buruan Sae">
                   <path d="M72 274C122 206 135 120 219 101C300 83 337 147 408 127C466 110 505 139 516 197C529 266 470 314 394 330C302 349 252 308 190 330C128 352 43 337 72 274Z" fill="#C8E6C9" />
                   <path d="M109 272C152 223 173 158 232 145C289 132 324 181 381 166C432 153 469 179 473 224C479 276 426 300 370 307C292 316 254 279 204 301C155 321 82 307 109 272Z" fill="#81C784" />
@@ -331,25 +345,26 @@ export default function PublicHomePage() {
                     [423, 212],
                   ].map(([cx, cy]) => (
                     <g key={`${cx}-${cy}`}>
-                      <circle cx={cx} cy={cy} r="22" fill="#ffffff" fillOpacity="0.3" className="animate-pulse-dot" />
-                      <circle cx={cx} cy={cy} r="18" fill="#ffffff" stroke="#2D7D32" strokeWidth="4" />
-                      <circle cx={cx} cy={cy} r="7" fill="#F9A825" />
+                      <circle cx={cx} cy={cy} r="22" fill="#2D7D32" fillOpacity="0.1" className="animate-pulse-dot" />
+                      <circle cx={cx} cy={cy} r="16" fill="#ffffff" stroke="#2D7D32" strokeWidth="3" />
+                      <circle cx={cx} cy={cy} r="6" fill="#F9A825" />
                     </g>
                   ))}
                 </svg>
 
-                <div className="absolute bottom-4 left-4 right-4 grid gap-3 sm:grid-cols-3">
+                {/* Overlay stat cards */}
+                <div className="absolute bottom-3 left-3 right-3 grid gap-2 sm:grid-cols-3">
                   {[
                     ['Lahan aktif', '126', 'bg-emerald-500'],
                     ['Pengajuan', '38', 'bg-amber-500'],
                     ['Kebun wisata', '12', 'bg-teal-500'],
-                  ].map(([label, value, color]) => (
-                    <div key={label} className="group rounded-xl border border-white/80 bg-white/90 p-3 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full ${color}`} />
-                        <p className="text-xs text-gray-500">{label}</p>
+                  ].map(([label, value, dotColor]) => (
+                    <div key={label} className="rounded-lg border border-white/60 bg-white/95 px-3 py-2.5 shadow-sm backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                        <p className="text-[11px] text-gray-500">{label}</p>
                       </div>
-                      <p className="mt-1 text-xl font-bold text-gray-950">{value}</p>
+                      <p className="mt-0.5 text-lg font-bold text-gray-950">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -360,25 +375,22 @@ export default function PublicHomePage() {
       </section>
 
       {/* ── Public Modules ──────────────────────────────────── */}
-      <section id="ekonomi" className="border-b border-gray-200 bg-white py-20">
+      <section id="ekonomi" className="border-b border-gray-100 bg-white py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div
-            ref={modulesSection.ref}
-            className={`max-w-3xl transition-all duration-700 ${
-              modulesSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
-            }`}
-          >
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-bs-hijau-50 px-3 py-1">
-              <Leaf className="h-3.5 w-3.5 text-bs-hijau" />
-              <span className="text-xs font-semibold text-bs-hijau-800">Modul Terbuka</span>
+          <div ref={modulesReveal.ref}>
+            <div className="max-w-2xl">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-bs-hijau-50 px-3 py-1">
+                <Leaf className="h-3.5 w-3.5 text-bs-hijau" />
+                <span className="text-xs font-semibold text-bs-hijau-800">Modul Terbuka</span>
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-gray-950 sm:text-3xl">
+                Akses publik sesuai arsitektur sistem
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">
+                Modul publik dirancang terbuka untuk masyarakat, wisatawan, akademisi,
+                pelaku UMKM, dan mitra bisnis tanpa membuka area operasional admin.
+              </p>
             </div>
-            <h2 className="text-2xl font-bold text-gray-950 sm:text-3xl">
-              Akses publik sesuai arsitektur sistem
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-gray-600 sm:text-base">
-              Modul publik dirancang terbuka untuk masyarakat, wisatawan, akademisi,
-              pelaku UMKM, dan mitra bisnis tanpa membuka area operasional admin.
-            </p>
           </div>
 
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -389,21 +401,20 @@ export default function PublicHomePage() {
                   key={module.title}
                   href={module.href}
                   className={`group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-500 hover:-translate-y-1 hover:border-bs-hijau/30 hover:shadow-xl hover:shadow-bs-hijau/5 ${
-                    modulesSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+                    modulesReveal.revealed
+                      ? 'translate-y-0 opacity-100'
+                      : 'translate-y-6 opacity-0'
                   }`}
-                  style={{ transitionDelay: modulesSection.isVisible ? `${(i + 1) * 100}ms` : '0ms' }}
+                  style={{ transitionDelay: `${(i + 1) * 80}ms` }}
                 >
-                  {/* Gradient overlay on hover */}
-                  <div className={`absolute inset-0 bg-gradient-to-br ${module.gradient} opacity-0 transition-opacity group-hover:opacity-[0.03]`} />
-
-                  <span className={`relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${module.gradient} text-white shadow-md`}>
+                  <span className={`relative flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${module.gradient} text-white shadow-md transition-transform duration-200 group-hover:scale-110`}>
                     <Icon className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <h3 className="relative mt-5 text-base font-semibold text-gray-950">{module.title}</h3>
                   <p className="relative mt-2 text-sm leading-6 text-gray-600">{module.description}</p>
                   <span className="relative mt-5 inline-flex items-center text-sm font-semibold text-bs-hijau">
                     Buka modul
-                    <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+                    <ArrowRight className="ml-1 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
                   </span>
                 </a>
               );
@@ -413,21 +424,22 @@ export default function PublicHomePage() {
       </section>
 
       {/* ── Ekosistem Penta Helix ───────────────────────────── */}
-      <section id="agrowisata" className="border-b border-gray-200 bg-gray-50 py-20">
+      <section id="agrowisata" className="border-b border-gray-100 bg-gray-50 py-20">
         <div
-          ref={ecoSection.ref}
-          className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8"
+          ref={ecoReveal.ref}
+          className="mx-auto grid max-w-7xl gap-12 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16 lg:px-8"
         >
+          {/* Left: description */}
           <div
-            className={`transition-all duration-700 ${
-              ecoSection.isVisible ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'
+            className={`transition-all duration-700 ease-out ${
+              ecoReveal.revealed ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0'
             }`}
           >
             <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-bs-kuning-50 px-3 py-1">
               <Sprout className="h-3.5 w-3.5 text-bs-kuning-800" />
               <span className="text-xs font-semibold text-bs-kuning-800">Penta Helix</span>
             </div>
-            <h2 className="text-2xl font-bold text-gray-950 sm:text-3xl">
+            <h2 className="text-2xl font-bold tracking-tight text-gray-950 sm:text-3xl">
               Dari lahan tidur ke sentra ekonomi kreatif.
             </h2>
             <p className="mt-4 text-sm leading-6 text-gray-600 sm:text-base">
@@ -436,7 +448,6 @@ export default function PublicHomePage() {
               area admin berbasis role.
             </p>
 
-            {/* Mini feature list */}
             <ul className="mt-6 space-y-3">
               {['Data terbuka untuk transparansi', 'Kolaborasi multi-stakeholder', 'Dashboard terpisah untuk admin'].map(
                 (text, i) => (
@@ -453,19 +464,20 @@ export default function PublicHomePage() {
             </ul>
           </div>
 
+          {/* Right: ecosystem cards */}
           <div id="ekosistem" className="grid gap-4 sm:grid-cols-2">
             {ecosystem.map((item, i) => {
               const Icon = item.icon;
               return (
                 <div
                   key={item.label}
-                  className={`group rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-lg ${
-                    ecoSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+                  className={`group rounded-2xl border border-gray-200 bg-white p-6 transition-all duration-500 hover:-translate-y-1 hover:shadow-lg hover:shadow-gray-200/50 ${
+                    ecoReveal.revealed ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
                   }`}
-                  style={{ transitionDelay: ecoSection.isVisible ? `${(i + 1) * 100}ms` : '0ms' }}
+                  style={{ transitionDelay: `${(i + 1) * 80}ms` }}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-bs-kuning-50 to-bs-kuning-100 text-bs-kuning-800 shadow-sm transition-transform group-hover:scale-110">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-bs-kuning-50 to-bs-kuning-100 text-bs-kuning-800 shadow-sm transition-transform duration-200 group-hover:scale-110">
                       <Icon className="h-5 w-5" aria-hidden="true" />
                     </span>
                     <h3 className="text-base font-semibold text-gray-950">{item.label}</h3>
@@ -480,7 +492,7 @@ export default function PublicHomePage() {
 
       {/* ── CTA Bottom ──────────────────────────────────────── */}
       <section id="edukasi" className="relative overflow-hidden bg-gradient-to-br from-bs-hijau-900 via-bs-hijau-800 to-bs-hijau py-20">
-        {/* Decorative pattern */}
+        {/* Decorative bg */}
         <div className="pointer-events-none absolute inset-0" aria-hidden="true">
           <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.04)_1px,transparent_1px)] bg-[size:48px_48px]" />
           <div className="absolute -right-20 -top-20 h-72 w-72 rounded-full bg-bs-kuning/10 blur-3xl" />
@@ -488,31 +500,31 @@ export default function PublicHomePage() {
         </div>
 
         <div
-          ref={ctaSection.ref}
-          className={`relative mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8 transition-all duration-700 ${
-            ctaSection.isVisible ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+          ref={ctaReveal.ref}
+          className={`relative mx-auto flex max-w-7xl flex-col gap-8 px-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8 transition-all duration-700 ease-out ${
+            ctaReveal.revealed ? 'translate-y-0 opacity-100' : 'translate-y-6 opacity-0'
           }`}
         >
-          <div className="max-w-3xl">
-            <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm">
                 <Sprout className="h-6 w-6" aria-hidden="true" />
               </span>
               <h2 className="text-2xl font-bold text-white sm:text-3xl">
                 Admin mengelola, publik ikut bergerak.
               </h2>
             </div>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-white/70 sm:text-base">
+            <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 sm:text-base">
               Gunakan panel admin untuk validasi data, monitoring produksi, marketplace,
               agrowisata, edukasi, dan dashboard program.
             </p>
           </div>
           <Link
             href="/auth/login"
-            className="group inline-flex h-12 w-full items-center justify-center rounded-xl bg-white px-6 text-sm font-semibold text-bs-hijau-800 shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl sm:w-auto"
+            className="group inline-flex h-12 w-full shrink-0 items-center justify-center rounded-xl bg-white px-6 text-sm font-semibold text-bs-hijau-800 shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.98] sm:w-auto"
           >
             Masuk ke Dashboard
-            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />
+            <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" aria-hidden="true" />
           </Link>
         </div>
       </section>
@@ -538,7 +550,7 @@ export default function PublicHomePage() {
               </p>
             </div>
 
-            {/* Portal Publik Links */}
+            {/* Portal Publik */}
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400">
                 Portal Publik
@@ -546,7 +558,7 @@ export default function PublicHomePage() {
               <ul className="mt-4 space-y-2.5">
                 {NAV_LINKS.map((link) => (
                   <li key={link.href}>
-                    <a href={link.href} className="text-sm text-gray-600 transition-colors hover:text-bs-hijau">
+                    <a href={link.href} className="text-sm text-gray-600 transition-colors duration-200 hover:text-bs-hijau">
                       {link.label}
                     </a>
                   </li>
@@ -560,18 +572,10 @@ export default function PublicHomePage() {
                 Program
               </h3>
               <ul className="mt-4 space-y-2.5">
-                <li>
-                  <span className="text-sm text-gray-600">Peta Lahan Perkotaan</span>
-                </li>
-                <li>
-                  <span className="text-sm text-gray-600">Produksi & Distribusi</span>
-                </li>
-                <li>
-                  <span className="text-sm text-gray-600">UMKM & Agrowisata</span>
-                </li>
-                <li>
-                  <span className="text-sm text-gray-600">Edukasi Komunitas</span>
-                </li>
+                <li><span className="text-sm text-gray-600">Peta Lahan Perkotaan</span></li>
+                <li><span className="text-sm text-gray-600">Produksi & Distribusi</span></li>
+                <li><span className="text-sm text-gray-600">UMKM & Agrowisata</span></li>
+                <li><span className="text-sm text-gray-600">Edukasi Komunitas</span></li>
               </ul>
             </div>
 
@@ -581,17 +585,9 @@ export default function PublicHomePage() {
                 Instansi
               </h3>
               <ul className="mt-4 space-y-2.5">
-                <li>
-                  <span className="text-sm text-gray-600">
-                    Dinas Ketahanan Pangan & Pertanian
-                  </span>
-                </li>
-                <li>
-                  <span className="text-sm text-gray-600">Kota Bandung</span>
-                </li>
-                <li>
-                  <span className="text-sm text-gray-600">Jawa Barat, Indonesia</span>
-                </li>
+                <li><span className="text-sm text-gray-600">Dinas Ketahanan Pangan & Pertanian</span></li>
+                <li><span className="text-sm text-gray-600">Kota Bandung</span></li>
+                <li><span className="text-sm text-gray-600">Jawa Barat, Indonesia</span></li>
               </ul>
             </div>
           </div>
@@ -601,7 +597,7 @@ export default function PublicHomePage() {
             <p className="text-xs text-gray-400">
               © {new Date().getFullYear()} Buruan Sae 2.0 — Dinas Ketahanan Pangan & Pertanian Kota Bandung.
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span className="rounded-full bg-bs-hijau-50 px-3 py-1 text-xs font-medium text-bs-hijau-800">
                 v2.0.0
               </span>

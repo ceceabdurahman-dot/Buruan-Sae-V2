@@ -49,14 +49,18 @@
     --input: 217.2 32.6% 17.5%;
     --ring: 122 39% 50%;
   }
-}
 
-@layer base {
-  * {
-    @apply border-border;
+  /* Hanya terapkan border-color default pada elemen yang memang menggunakan border */
+  *,
+  ::before,
+  ::after {
+    border-color: hsl(var(--border));
   }
+
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -70,22 +74,22 @@
 /* ── Public Page Animations ───────────────────────────── */
 
 @keyframes fadeInUp {
-  0% {
+  from {
     opacity: 0;
     transform: translateY(24px);
   }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes fadeInLeft {
-  0% {
+  from {
     opacity: 0;
     transform: translateX(-24px);
   }
-  100% {
+  to {
     opacity: 1;
     transform: translateX(0);
   }
@@ -109,44 +113,23 @@
     opacity: 1;
   }
   50% {
-    transform: scale(1.6);
-    opacity: 0.5;
+    transform: scale(1.5);
+    opacity: 0.4;
   }
 }
 
 @keyframes slideDown {
-  0% {
+  from {
     opacity: 0;
     transform: translateY(-12px);
   }
-  100% {
+  to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
 @keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+  from { background-position: -200% 0; }
+  to   { background-position: 200% 0; }
 }
-
-/* Scroll-triggered visibility */
-.animate-on-scroll {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
-}
-.animate-on-scroll.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Stagger children delays */
-.stagger-1 { transition-delay: 0.1s; }
-.stagger-2 { transition-delay: 0.2s; }
-.stagger-3 { transition-delay: 0.3s; }
-.stagger-4 { transition-delay: 0.4s; }
