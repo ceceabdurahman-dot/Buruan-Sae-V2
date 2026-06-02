@@ -1,0 +1,30 @@
+{
+  "name": "buruan-sae-2",
+  "version": "2.0.0",
+  "description": "Aplikasi Urban Farming Digital Kota Bandung",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "web-admin"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:web": "npm run dev --workspace=web-admin",
+    "build:backend": "npm run build --workspace=backend",
+    "build:web": "npm run build --workspace=web-admin",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "cd backend && npx prisma migrate deploy",
+    "db:generate": "cd backend && npx prisma generate",
+    "db:seed": "cd backend && npx ts-node prisma/seed-production.ts",
+    "docker:dev": "docker compose -f docker-compose.yml up -d",
+    "docker:prod": "docker compose -f docker-compose.prod.yml up -d",
+    "docker:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "author": "DKPP Kota Bandung",
+  "license": "MIT"
+}

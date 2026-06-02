@@ -1,0 +1,72 @@
+# ============================================================
+# .gitignore — Buruan Sae 2.0 Monorepo
+# JANGAN hapus entri ini — melindungi data sensitif
+# ============================================================
+
+# ── Secrets & Environment ──────────────────────────────────
+.env
+.env.local
+.env.production
+.env.staging
+.env.development
+*.env
+!*.env.example          # Boleh commit file contoh
+
+# ── Node.js ───────────────────────────────────────────────
+node_modules/
+dist/
+.next/
+.turbo/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── TypeScript ─────────────────────────────────────────────
+*.tsbuildinfo
+
+# ── Prisma ────────────────────────────────────────────────
+backend/prisma/migrations/*.sql.bak
+
+# ── Flutter / Dart ────────────────────────────────────────
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/android/local.properties
+mobile/android/.gradle/
+mobile/android/app/release/
+mobile/android/app/debug/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+mobile/ios/Runner.xcworkspace/xcuserdata/
+mobile/*.jks                          # Android keystore — JANGAN commit!
+mobile/key.properties                 # Keystore config — JANGAN commit!
+mobile/android/app/google-services.json  # Firebase config — gunakan CI secret
+mobile/ios/Runner/GoogleService-Info.plist
+
+# ── Docker ────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── IDE ───────────────────────────────────────────────────
+.idea/
+.vscode/settings.json
+*.iml
+
+# ── Coverage & Test Output ────────────────────────────────
+coverage/
+*.lcov
+test-results/
+
+# ── MinIO / Storage ───────────────────────────────────────
+minio-data/
+postgres-data/
+redis-data/

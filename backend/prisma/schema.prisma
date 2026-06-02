@@ -1,0 +1,476 @@
+// Prisma Schema — Buruan Sae 2.0
+// Generator: prisma-client-js
+// Database: PostgreSQL 15 + PostGIS 3.4
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, uuid_ossp(map: "uuid-ossp"), pg_trgm]
+}
+
+// ─────────────────────────────────────────
+// ENUM
+// ─────────────────────────────────────────
+
+enum PeranPengguna {
+  PETANI
+  KADER_KELURAHAN
+  KOORDINATOR_KECAMATAN
+  PENGELOLA_WISATA
+  UMKM
+  KONSUMEN
+  ADMIN_DINAS
+  SUPER_ADMIN
+}
+
+enum StatusLahan {
+  TERSEDIA
+  PENGAJUAN
+  AKTIF
+  TIDAK_AKTIF
+  DITOLAK
+}
+
+enum StatusPesanan {
+  PENDING
+  DIKONFIRMASI
+  DIPROSES
+  DIKIRIM
+  SELESAI
+  DIBATALKAN
+}
+
+enum StatusPembayaran {
+  PENDING
+  SUKSES
+  GAGAL
+  EXPIRE
+  REFUND
+}
+
+enum StatusBooking {
+  PENDING
+  DIKONFIRMASI
+  CHECKIN
+  SELESAI
+  DIBATALKAN
+}
+
+enum KategoriKomoditas {
+  SAYURAN
+  BUAH
+  HERBAL
+  MICROGREEN
+  REMPAH
+  LAINNYA
+}
+
+enum TipeNotifikasi {
+  PUSH_FCM
+  WHATSAPP
+  EMAIL
+  IN_APP
+}
+
+// ─────────────────────────────────────────
+// PENGGUNA & AUTENTIKASI
+// ─────────────────────────────────────────
+
+model Pengguna {
+  id               String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nama             String        @db.VarChar(100)
+  email            String?       @unique @db.VarChar(150)
+  nomor_wa         String?       @unique @db.VarChar(20)
+  nik_encrypted    String?       @db.Text
+  nik_hash         String?       @unique @db.Char(64)
+  password_hash    String        @db.Text
+  peran            PeranPengguna @default(PETANI)
+  kecamatan        String?       @db.VarChar(50)
+  kelurahan        String?       @db.VarChar(50)
+  foto_url         String?       @db.Text
+  is_aktif         Boolean       @default(true)
+  is_terverifikasi Boolean       @default(false)
+  fcm_token        String?       @db.Text
+  created_at       DateTime      @default(now())
+  updated_at       DateTime      @updatedAt
+
+  // Relations
+  refresh_tokens   RefreshToken[]
+  lahan            Lahan[]
+  catatan_panen    CatatanPanen[]
+  pesanan_beli     Pesanan[]       @relation("PembeliPesanan")
+  pesanan_jual     Pesanan[]       @relation("PenjualPesanan")
+  booking_wisata   BookingWisata[]
+  anggota_kelompok AnggotaKelompok[]
+  progres_belajar  ProgresBelajar[]
+  kursus_dibuat    Kursus[]        @relation("KursusPembuat")
+  poin             PoinPengguna?
+  consent          ConsentPengguna[]
+  audit_logs       AuditLog[]
+
+  @@map("pengguna")
+}
+
+model RefreshToken {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pengguna_id String   @db.Uuid
+  token_hash  String   @unique @db.Char(64)
+  expires_at  DateTime
+  created_at  DateTime @default(now())
+  is_revoked  Boolean  @default(false)
+
+  pengguna Pengguna @relation(fields: [pengguna_id], references: [id], onDelete: Cascade)
+
+  @@index([pengguna_id])
+  @@map("refresh_token")
+}
+
+model AuditLog {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pengguna_id String?  @db.Uuid
+  aksi        String   @db.VarChar(50)
+  resource    String   @db.VarChar(50)
+  resource_id String?  @db.VarChar(50)
+  detail      Json?
+  ip_address  String?  @db.VarChar(45)
+  created_at  DateTime @default(now())
+
+  pengguna Pengguna? @relation(fields: [pengguna_id], references: [id])
+
+  @@index([pengguna_id])
+  @@index([created_at])
+  @@map("audit_log")
+}
+
+// ─────────────────────────────────────────
+// KELOMPOK TANI
+// ─────────────────────────────────────────
+
+model KelompokTani {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nama            String   @unique @db.VarChar(150)
+  kecamatan       String   @db.VarChar(50)
+  kelurahan       String   @db.VarChar(50)
+  deskripsi       String?  @db.Text
+  foto_url        String?  @db.Text
+  qr_static_code  String?  @db.VarChar(50)
+  qr_static_url   String?  @db.Text
+  is_aktif        Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  anggota AnggotaKelompok[]
+  lahan   Lahan[]
+
+  @@map("kelompok_tani")
+}
+
+model AnggotaKelompok {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  kelompok_id   String   @db.Uuid
+  pengguna_id   String   @db.Uuid
+  peran_kelompok String  @default("ANGGOTA") @db.VarChar(30)
+  tanggal_bergabung DateTime @default(now())
+  is_aktif      Boolean  @default(true)
+
+  kelompok KelompokTani @relation(fields: [kelompok_id], references: [id])
+  pengguna Pengguna      @relation(fields: [pengguna_id], references: [id])
+
+  @@unique([kelompok_id, pengguna_id])
+  @@map("anggota_kelompok")
+}
+
+// ─────────────────────────────────────────
+// LAHAN
+// ─────────────────────────────────────────
+
+model Lahan {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nama        String      @db.VarChar(100)
+  pemilik_id  String      @db.Uuid
+  kelompok_id String?     @db.Uuid
+  status      StatusLahan @default(PENGAJUAN)
+  jenis       String      @db.VarChar(30) // pekarangan, atap, lahan_kosong
+  luas_m2     Decimal?    @db.Decimal(10, 2)
+  alamat      String?     @db.Text
+  kecamatan   String      @db.VarChar(50)
+  kelurahan   String      @db.VarChar(50)
+  catatan     String?     @db.Text
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  pemilik  Pengguna      @relation(fields: [pemilik_id], references: [id])
+  kelompok KelompokTani? @relation(fields: [kelompok_id], references: [id])
+  foto     FotoLahan[]
+  panen    CatatanPanen[]
+
+  @@index([pemilik_id])
+  @@index([kecamatan])
+  @@map("lahan")
+}
+
+model FotoLahan {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  lahan_id   String   @db.Uuid
+  url        String   @db.Text
+  urutan     Int      @default(0)
+  created_at DateTime @default(now())
+
+  lahan Lahan @relation(fields: [lahan_id], references: [id], onDelete: Cascade)
+
+  @@map("foto_lahan")
+}
+
+// ─────────────────────────────────────────
+// PRODUKSI & PANEN
+// ─────────────────────────────────────────
+
+model Komoditas {
+  id         String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nama       String            @unique @db.VarChar(80)
+  nama_latin String?           @db.VarChar(100)
+  satuan     String            @db.VarChar(20)
+  kategori   KategoriKomoditas @default(SAYURAN)
+  is_aktif   Boolean           @default(true)
+
+  panen CatatanPanen[]
+
+  @@map("komoditas")
+}
+
+model CatatanPanen {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  lahan_id     String   @db.Uuid
+  pengguna_id  String   @db.Uuid
+  komoditas_id String   @db.Uuid
+  jumlah       Decimal  @db.Decimal(10, 3)
+  satuan       String   @db.VarChar(20)
+  tanggal_panen DateTime @default(now())
+  catatan      String?  @db.Text
+  foto_url     String?  @db.Text
+  is_offline   Boolean  @default(false)
+  idempotency_key String? @unique @db.VarChar(100)
+  created_at   DateTime @default(now())
+  synced_at    DateTime?
+
+  lahan     Lahan     @relation(fields: [lahan_id], references: [id])
+  pengguna  Pengguna  @relation(fields: [pengguna_id], references: [id])
+  komoditas Komoditas @relation(fields: [komoditas_id], references: [id])
+
+  @@index([lahan_id])
+  @@index([pengguna_id])
+  @@index([tanggal_panen])
+  @@map("catatan_panen")
+}
+
+// ─────────────────────────────────────────
+// MARKETPLACE
+// ─────────────────────────────────────────
+
+model ProdukMarketplace {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  penjual_id  String   @db.Uuid
+  nama        String   @db.VarChar(100)
+  deskripsi   String?  @db.Text
+  kategori    String   @db.VarChar(30)
+  harga       Decimal  @db.Decimal(12, 0)
+  stok        Int      @default(0)
+  satuan      String   @db.VarChar(20)
+  foto_url    String?  @db.Text
+  is_aktif    Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  detail_pesanan DetailPesanan[]
+
+  @@index([penjual_id])
+  @@map("produk_marketplace")
+}
+
+model Pesanan {
+  id          String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pembeli_id  String        @db.Uuid
+  penjual_id  String        @db.Uuid
+  status      StatusPesanan @default(PENDING)
+  total       Decimal       @db.Decimal(14, 0)
+  catatan     String?       @db.Text
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+
+  pembeli  Pengguna        @relation("PembeliPesanan", fields: [pembeli_id], references: [id])
+  penjual  Pengguna        @relation("PenjualPesanan", fields: [penjual_id], references: [id])
+  detail   DetailPesanan[]
+  pembayaran TransaksiPembayaran?
+
+  @@index([pembeli_id])
+  @@index([penjual_id])
+  @@map("pesanan")
+}
+
+model DetailPesanan {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pesanan_id String   @db.Uuid
+  produk_id  String   @db.Uuid
+  qty        Int
+  harga_satuan Decimal @db.Decimal(12, 0)
+
+  pesanan Pesanan           @relation(fields: [pesanan_id], references: [id], onDelete: Cascade)
+  produk  ProdukMarketplace @relation(fields: [produk_id], references: [id])
+
+  @@map("detail_pesanan")
+}
+
+model TransaksiPembayaran {
+  id            String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pesanan_id    String?          @unique @db.Uuid
+  booking_id    String?          @unique @db.Uuid
+  order_id      String           @unique @db.VarChar(100)
+  metode        String?          @db.VarChar(30)
+  status        StatusPembayaran @default(PENDING)
+  nominal       Decimal          @db.Decimal(14, 0)
+  snap_token    String?          @db.Text
+  qris_url      String?          @db.Text
+  midtrans_id   String?          @db.VarChar(100)
+  expired_at    DateTime?
+  paid_at       DateTime?
+  created_at    DateTime         @default(now())
+  updated_at    DateTime         @updatedAt
+
+  pesanan Pesanan?       @relation(fields: [pesanan_id], references: [id])
+  booking BookingWisata? @relation(fields: [booking_id], references: [id])
+
+  @@index([order_id])
+  @@index([status])
+  @@map("transaksi_pembayaran")
+}
+
+// ─────────────────────────────────────────
+// AGROWISATA
+// ─────────────────────────────────────────
+
+model PaketWisata {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  nama         String   @db.VarChar(100)
+  deskripsi    String?  @db.Text
+  harga        Decimal  @db.Decimal(12, 0)
+  durasi_jam   Int      @default(2)
+  kapasitas    Int      @default(20)
+  foto_url     String?  @db.Text
+  is_aktif     Boolean  @default(true)
+  created_at   DateTime @default(now())
+
+  booking BookingWisata[]
+
+  @@map("paket_wisata")
+}
+
+model BookingWisata {
+  id             String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  paket_id       String        @db.Uuid
+  pengguna_id    String        @db.Uuid
+  tanggal        DateTime      @db.Date
+  jumlah_peserta Int
+  status         StatusBooking @default(PENDING)
+  qr_code        String?       @db.VarChar(100)
+  catatan        String?       @db.Text
+  checkin_at     DateTime?
+  created_at     DateTime      @default(now())
+
+  paket    PaketWisata         @relation(fields: [paket_id], references: [id])
+  pengguna Pengguna            @relation(fields: [pengguna_id], references: [id])
+  pembayaran TransaksiPembayaran?
+
+  @@index([tanggal])
+  @@map("booking_wisata")
+}
+
+// ─────────────────────────────────────────
+// EDUKASI
+// ─────────────────────────────────────────
+
+model Kursus {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  judul        String   @db.VarChar(150)
+  deskripsi    String?  @db.Text
+  level        String   @db.VarChar(20)
+  kategori     String   @db.VarChar(50)
+  foto_cover   String?  @db.Text
+  durasi_menit Int      @default(60)
+  is_aktif     Boolean  @default(true)
+  pembuat_id   String?  @db.Uuid
+  created_at   DateTime @default(now())
+
+  pembuat Pengguna?       @relation("KursusPembuat", fields: [pembuat_id], references: [id])
+  modul   ModulKursus[]
+  progres ProgresBelajar[]
+
+  @@map("kursus")
+}
+
+model ModulKursus {
+  id        String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  kursus_id String @db.Uuid
+  judul     String @db.VarChar(150)
+  urutan    Int
+  tipe      String @db.VarChar(20) // video, artikel, kuis
+  konten    Json?
+  durasi_menit Int @default(10)
+
+  kursus Kursus @relation(fields: [kursus_id], references: [id], onDelete: Cascade)
+
+  @@map("modul_kursus")
+}
+
+model ProgresBelajar {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pengguna_id String    @db.Uuid
+  kursus_id   String    @db.Uuid
+  persen      Int       @default(0)
+  selesai_at  DateTime?
+  updated_at  DateTime  @updatedAt
+
+  pengguna Pengguna @relation(fields: [pengguna_id], references: [id])
+  kursus   Kursus   @relation(fields: [kursus_id], references: [id])
+
+  @@unique([pengguna_id, kursus_id])
+  @@map("progres_belajar")
+}
+
+// ─────────────────────────────────────────
+// GAMIFIKASI
+// ─────────────────────────────────────────
+
+model PoinPengguna {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pengguna_id String   @unique @db.Uuid
+  total_poin  Int      @default(0)
+  updated_at  DateTime @updatedAt
+
+  pengguna Pengguna @relation(fields: [pengguna_id], references: [id])
+
+  @@map("poin_pengguna")
+}
+
+// ─────────────────────────────────────────
+// PRIVASI & CONSENT
+// ─────────────────────────────────────────
+
+model ConsentPengguna {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  pengguna_id String   @db.Uuid
+  tipe_dokumen String  @db.VarChar(30)
+  versi       String   @db.VarChar(10)
+  disetujui   Boolean  @default(false)
+  ip_address  String?  @db.VarChar(45)
+  created_at  DateTime @default(now())
+
+  pengguna Pengguna @relation(fields: [pengguna_id], references: [id])
+
+  @@unique([pengguna_id, tipe_dokumen, versi])
+  @@map("consent_pengguna")
+}

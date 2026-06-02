@@ -1,0 +1,19 @@
+# ============================================================
+# Dockerfile.dev — Web Admin Next.js (Development)
+# Hot Module Replacement aktif
+# ============================================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache curl
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+
+EXPOSE 3001
+
+CMD ["npm", "run", "dev"]

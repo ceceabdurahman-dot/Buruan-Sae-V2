@@ -1,0 +1,23 @@
+# ============================================================
+# Dockerfile.dev — Backend Fastify (Development)
+# Hot-reload dengan tsx watch
+# ============================================================
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache curl
+
+COPY package*.json ./
+COPY prisma ./prisma/
+
+RUN npm ci
+
+RUN npx prisma generate
+
+COPY tsconfig.json ./
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]
