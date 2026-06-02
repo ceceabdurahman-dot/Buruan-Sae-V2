@@ -44,6 +44,14 @@ export async function agrowisataRoutes(app: FastifyInstance) {
     return reply.status(201).send(await agrowisataService.buatBooking(dto, request.user.sub));
   });
 
+  // GET /agrowisata/booking — Daftar booking pengguna/admin
+  app.get('/booking', {
+    preHandler: [app.authenticate],
+    schema: { tags: ['agrowisata'], summary: 'Daftar booking agrowisata' },
+  }, async (request, reply) => {
+    return reply.send(await agrowisataService.daftarBooking(request.user.sub, request.user.peran));
+  });
+
   // POST /agrowisata/booking/:id/bayar
   app.post('/booking/:id/bayar', {
     preHandler: [app.authenticate],

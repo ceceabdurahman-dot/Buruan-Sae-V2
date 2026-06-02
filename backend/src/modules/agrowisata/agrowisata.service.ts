@@ -41,13 +41,10 @@ export class AgrowisataService {
   constructor(private readonly app: FastifyInstance) {}
 
   async daftarPaket(query: { page?: number; limit?: number; kecamatan?: string }) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const page = Math.max(1, Number(query.page ?? 1));
+    const limit = Math.min(50, Math.max(1, Number(query.limit ?? 20)));
 
-    const where: any = { is_active: true };
-    if (query.kecamatan) {
-      where.pengelola = { kecamatan: query.kecamatan };
-    }
+    const where: any = { is_aktif: true };
 
     const [total, data] = await Promise.all([
       this.app.prisma.paketWisata.count({ where }),
@@ -61,68 +58,68 @@ export class AgrowisataService {
           nama: true,
           deskripsi: true,
           harga: true,
-          kapasitas_max: true,
+          kapasitas: true,
           durasi_jam: true,
-          lokasi: true,
-          foto_urls: true,
-          rata_rating: true,
-          total_review: true,
-          pengelola: { select: { id: true, nama_lengkap: true, kecamatan: true } },
+          foto_url: true,
+          is_aktif: true,
+          created_at: true,
         },
       }),
     ]);
 
-    return { data, total, page, limit };
+    const mapped = data.map((paket) => ({
+      ...paket,
+      harga: Number(paket.harga),
+      harga_per_orang: Number(paket.harga),
+      kapasitas_max: paket.kapasitas,
+      lokasi: 'Kota Bandung',
+      foto_urls: paket.foto_url ? [paket.foto_url] : [],
+      rata_rating: 0,
+      total_review: 0,
+    }));
+
+    return { data: mapped, items: mapped, total, page, limit, totalHalaman: Math.ceil(total / limit) };
   }
 
   async detailPaket(paketId: string) {
     const paket = await this.app.prisma.paketWisata.findUnique({
-      where: { id: paketId, is_active: true },
+      where: { id: paketId, is_aktif: true },
       include: {
-        pengelola: { select: { id: true, nama_lengkap: true, nomor_wa: true, kecamatan: true } },
         booking: {
           where: { status: 'DIKONFIRMASI' },
-          select: { tgl_kunjungan: true, jumlah_peserta: true },
-          orderBy: { tgl_kunjungan: 'asc' },
+          select: { tanggal: true, jumlah_peserta: true },
+          orderBy: { tanggal: 'asc' },
           take: 30,
         },
       },
     });
 
     if (!paket) throw { statusCode: 404, message: 'Paket wisata tidak ditemukan' };
-    return paket;
+    return {
+      ...paket,
+      harga: Number(paket.harga),
+      harga_per_orang: Number(paket.harga),
+      kapasitas_max: paket.kapasitas,
+      lokasi: 'Kota Bandung',
+      foto_urls: paket.foto_url ? [paket.foto_url] : [],
+      booking: paket.booking.map((booking) => ({
+        ...booking,
+        tgl_kunjungan: booking.tanggal,
+      })),
+    };
   }
 
   async tambahPaket(dto: TambahPaketDto, pengelolaId: string) {
-    const paket = await this.app.prisma.$transaction(async (tx) => {
-      const newPaket = await tx.paketWisata.create({
-        data: {
-          pengelola_id: pengelolaId,
-          nama: dto.nama,
-          deskripsi: dto.deskripsi,
-          harga: dto.harga,
-          kapasitas_max: dto.kapasitas_max,
-          durasi_jam: dto.durasi_jam,
-          lokasi: dto.lokasi,
-          fasilitas: dto.fasilitas,
-          foto_urls: dto.foto_urls,
-          hari_operasional: dto.hari_operasional,
-          jam_buka: dto.jam_buka,
-          jam_tutup: dto.jam_tutup,
-        },
-        select: { id: true },
-      });
-
-      // Update koordinat PostGIS jika ada
-      if (dto.lat && dto.lng) {
-        await tx.$executeRaw`
-          UPDATE "PaketWisata"
-          SET lokasi_geom = ST_SetSRID(ST_MakePoint(${dto.lng}, ${dto.lat}), 4326)
-          WHERE id = ${newPaket.id}::uuid
-        `;
-      }
-
-      return newPaket;
+    const paket = await this.app.prisma.paketWisata.create({
+      data: {
+        nama: dto.nama,
+        deskripsi: dto.deskripsi,
+        harga: dto.harga,
+        kapasitas: dto.kapasitas_max,
+        durasi_jam: dto.durasi_jam,
+        foto_url: dto.foto_urls[0],
+      },
+      select: { id: true },
     });
 
     return { id: paket.id, pesan: 'Paket wisata berhasil ditambahkan' };
@@ -130,8 +127,8 @@ export class AgrowisataService {
 
   async buatBooking(dto: BookingDto, pemesanId: string) {
     const paket = await this.app.prisma.paketWisata.findUnique({
-      where: { id: dto.paket_id, is_active: true },
-      select: { id: true, kapasitas_max: true, harga: true, nama: true },
+      where: { id: dto.paket_id, is_aktif: true },
+      select: { id: true, kapasitas: true, harga: true, nama: true },
     });
 
     if (!paket) throw { statusCode: 404, message: 'Paket wisata tidak ditemukan' };
@@ -141,14 +138,14 @@ export class AgrowisataService {
     const bookingExisting = await this.app.prisma.bookingWisata.aggregate({
       where: {
         paket_id: dto.paket_id,
-        tgl_kunjungan: tglKunjungan,
-        status: { in: ['MENUNGGU_KONFIRMASI', 'DIKONFIRMASI'] },
+        tanggal: tglKunjungan,
+        status: { in: ['PENDING', 'DIKONFIRMASI'] },
       },
       _sum: { jumlah_peserta: true },
     });
 
     const terisi = bookingExisting._sum.jumlah_peserta ?? 0;
-    const tersedia = paket.kapasitas_max - terisi;
+    const tersedia = paket.kapasitas - terisi;
 
     if (dto.jumlah_peserta > tersedia) {
       throw {
@@ -160,22 +157,52 @@ export class AgrowisataService {
     const booking = await this.app.prisma.bookingWisata.create({
       data: {
         paket_id: dto.paket_id,
-        pemesan_id: pemesanId,
-        tgl_kunjungan: tglKunjungan,
+        pengguna_id: pemesanId,
+        tanggal: tglKunjungan,
         jumlah_peserta: dto.jumlah_peserta,
-        total_harga: Number(paket.harga) * dto.jumlah_peserta,
-        nama_pemesan: dto.nama_pemesan,
-        nomor_wa_pemesan: dto.nomor_wa_pemesan,
         catatan: dto.catatan,
-        status: 'MENUNGGU_KONFIRMASI',
+        status: 'PENDING',
       },
-      select: { id: true, total_harga: true },
+      select: { id: true },
     });
+
+    const totalHarga = Number(paket.harga) * dto.jumlah_peserta;
 
     return {
       booking_id: booking.id,
-      total_harga: booking.total_harga,
+      total_harga: totalHarga,
+      total: totalHarga,
       pesan: 'Booking berhasil! Lanjutkan ke pembayaran.',
+    };
+  }
+
+  async daftarBooking(penggunaId: string, peran: string) {
+    const where: any = {};
+    if (!['ADMIN_DINAS', 'SUPER_ADMIN'].includes(peran)) {
+      where.pengguna_id = penggunaId;
+    }
+
+    const data = await this.app.prisma.bookingWisata.findMany({
+      where,
+      orderBy: { created_at: 'desc' },
+      take: 50,
+      include: {
+        paket: { select: { id: true, nama: true, harga: true, foto_url: true } },
+        pengguna: { select: { id: true, nama: true, nomor_wa: true } },
+        pembayaran: { select: { id: true, status: true, snap_token: true } },
+      },
+    });
+
+    return {
+      data: data.map((booking) => ({
+        ...booking,
+        tgl_kunjungan: booking.tanggal,
+        tanggal_kunjungan: booking.tanggal,
+        total_harga: Number(booking.paket.harga) * booking.jumlah_peserta,
+        pengguna: booking.pengguna
+          ? { ...booking.pengguna, nama_lengkap: booking.pengguna.nama }
+          : null,
+      })),
     };
   }
 }

@@ -26,21 +26,21 @@ const publicModules = [
     title: 'Marketplace Lokal',
     description: 'Katalog produk segar dan olahan dari komunitas serta UMKM.',
     icon: ShoppingBag,
-    href: '#marketplace',
+    href: '/marketplace-lokal',
     status: 'Portal',
   },
   {
     title: 'Agrowisata Edukasi',
     description: 'Informasi kunjungan kebun, pelatihan, dan agenda edukasi.',
     icon: CalendarDays,
-    href: '#agrowisata',
+    href: '/agrowisata-edukasi',
     status: 'Portal',
   },
   {
     title: 'Edukasi Terbuka',
     description: 'Materi budidaya, kompos, hidroponik, pemasaran, dan kolaborasi.',
     icon: BookOpen,
-    href: '#edukasi',
+    href: '/edukasi-terbuka',
     status: 'Portal',
   },
 ];
@@ -60,9 +60,9 @@ const ecosystem = [
 
 const navLinks = [
   { href: '/peta-lahan', label: 'Peta' },
-  { href: '#marketplace', label: 'Marketplace' },
-  { href: '#agrowisata', label: 'Agrowisata' },
-  { href: '#edukasi', label: 'Edukasi' },
+  { href: '/marketplace-lokal', label: 'Marketplace' },
+  { href: '/agrowisata-edukasi', label: 'Agrowisata' },
+  { href: '/edukasi-terbuka', label: 'Edukasi' },
 ];
 
 export default function PublicHomePage() {

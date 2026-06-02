@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 // ============================================================
@@ -7,13 +8,14 @@ import { z } from 'zod';
 
 export const TambahProdukSchema = z.object({
   nama: z.string().min(3).max(100).trim(),
-  deskripsi: z.string().min(10).max(2000).trim(),
+  deskripsi: z.string().min(10).max(2000).trim().optional(),
   harga: z.number().positive().max(99_999_999),
   stok: z.number().int().min(0).max(999999),
   satuan: z.string().max(20).default('kg'),
   komoditas_id: z.string().uuid().optional(),
   foto_urls: z.array(z.string().url()).max(5).default([]),
-  kategori: z.string().max(50).optional(),
+  foto_url: z.string().url().optional(),
+  kategori: z.string().max(50).default('sayuran'),
   berat_gram: z.number().positive().optional(),
 });
 
@@ -58,66 +60,175 @@ export class MarketplaceService {
     const { page, limit, search, kategori, kecamatan, harga_min, harga_max, sort } = query;
     const skip = (page - 1) * limit;
 
-    const where: any = { is_active: true, stok: { gt: 0 } };
-    if (search) where.nama = { contains: search, mode: 'insensitive' };
-    if (kategori) where.kategori = kategori;
-    if (harga_min !== undefined || harga_max !== undefined) {
-      where.harga = {};
-      if (harga_min !== undefined) where.harga.gte = harga_min;
-      if (harga_max !== undefined) where.harga.lte = harga_max;
+    const filters: Prisma.Sql[] = [
+      Prisma.sql`pm.is_aktif = true`,
+      Prisma.sql`pm.stok > 0`,
+    ];
+
+    if (search) {
+      filters.push(Prisma.sql`pm.nama ILIKE ${`%${search}%`}`);
+    }
+    if (kategori) {
+      filters.push(Prisma.sql`pm.kategori = ${kategori}`);
+    }
+    if (harga_min !== undefined) {
+      filters.push(Prisma.sql`pm.harga >= ${harga_min}`);
+    }
+    if (harga_max !== undefined) {
+      filters.push(Prisma.sql`pm.harga <= ${harga_max}`);
     }
     if (kecamatan) {
-      where.penjual = { kecamatan };
+      filters.push(Prisma.sql`p.kecamatan = ${kecamatan}`);
     }
 
-    const orderBy: any =
-      sort === 'harga_asc' ? { harga: 'asc' }
-      : sort === 'harga_desc' ? { harga: 'desc' }
-      : sort === 'populer' ? { pesanan_detail: { _count: 'desc' } }
-      : { created_at: 'desc' };
+    const whereSql = Prisma.sql`WHERE ${Prisma.join(filters, ' AND ')}`;
+    const orderSql =
+      sort === 'harga_asc' ? Prisma.sql`pm.harga ASC`
+      : sort === 'harga_desc' ? Prisma.sql`pm.harga DESC`
+      : sort === 'populer' ? Prisma.sql`jumlah_pesanan DESC, pm.created_at DESC`
+      : Prisma.sql`pm.created_at DESC`;
 
-    const [total, data] = await Promise.all([
-      this.app.prisma.produkMarketplace.count({ where }),
-      this.app.prisma.produkMarketplace.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy,
-        select: {
-          id: true,
-          nama: true,
-          deskripsi: true,
-          harga: true,
-          stok: true,
-          satuan: true,
-          foto_urls: true,
-          kategori: true,
-          created_at: true,
-          penjual: {
-            select: { id: true, nama_lengkap: true, kecamatan: true, kelurahan: true },
-          },
-          komoditas: { select: { id: true, nama: true } },
-        },
-      }),
+    const [countRows, rows] = await Promise.all([
+      this.app.prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT COUNT(*)::bigint AS total
+        FROM produk_marketplace pm
+        LEFT JOIN pengguna p ON p.id = pm.penjual_id
+        ${whereSql}
+      `,
+      this.app.prisma.$queryRaw<{
+        id: string;
+        nama: string;
+        deskripsi: string | null;
+        kategori: string;
+        harga: string;
+        stok: number;
+        satuan: string;
+        foto_url: string | null;
+        created_at: Date;
+        penjual_id: string;
+        penjual_nama: string | null;
+        penjual_kecamatan: string | null;
+        penjual_kelurahan: string | null;
+        jumlah_pesanan: bigint;
+      }[]>`
+        SELECT
+          pm.id::text,
+          pm.nama,
+          pm.deskripsi,
+          pm.kategori,
+          pm.harga::text,
+          pm.stok,
+          pm.satuan,
+          pm.foto_url,
+          pm.created_at,
+          pm.penjual_id::text,
+          p.nama AS penjual_nama,
+          p.kecamatan AS penjual_kecamatan,
+          p.kelurahan AS penjual_kelurahan,
+          COALESCE((
+            SELECT COUNT(*)
+            FROM detail_pesanan dp
+            WHERE dp.produk_id = pm.id
+          ), 0)::bigint AS jumlah_pesanan
+        FROM produk_marketplace pm
+        LEFT JOIN pengguna p ON p.id = pm.penjual_id
+        ${whereSql}
+        ORDER BY ${orderSql}
+        LIMIT ${limit}
+        OFFSET ${skip}
+      `,
     ]);
 
-    return { data, total, page, limit, totalHalaman: Math.ceil(total / limit) };
+    const total = Number(countRows[0]?.total ?? 0);
+    const data = rows.map((row) => ({
+      id: row.id,
+      nama: row.nama,
+      deskripsi: row.deskripsi,
+      kategori: row.kategori,
+      harga: Number(row.harga),
+      stok: row.stok,
+      satuan: row.satuan,
+      foto_url: row.foto_url,
+      foto_urls: row.foto_url ? [row.foto_url] : [],
+      created_at: row.created_at,
+      jumlah_pesanan: Number(row.jumlah_pesanan),
+      penjual: {
+        id: row.penjual_id,
+        nama_lengkap: row.penjual_nama ?? 'Penjual',
+        nama: row.penjual_nama ?? 'Penjual',
+        kecamatan: row.penjual_kecamatan,
+        kelurahan: row.penjual_kelurahan,
+      },
+    }));
+
+    return { data, items: data, total, page, limit, totalHalaman: Math.ceil(total / limit) };
   }
 
   /**
    * Detail produk
    */
   async detailProduk(produkId: string) {
-    const produk = await this.app.prisma.produkMarketplace.findUnique({
-      where: { id: produkId, is_active: true },
-      include: {
-        penjual: { select: { id: true, nama_lengkap: true, kecamatan: true, foto_profil_url: true } },
-        komoditas: { select: { id: true, nama: true, satuan: true } },
-      },
-    });
+    const rows = await this.app.prisma.$queryRaw<{
+      id: string;
+      nama: string;
+      deskripsi: string | null;
+      kategori: string;
+      harga: string;
+      stok: number;
+      satuan: string;
+      foto_url: string | null;
+      created_at: Date;
+      penjual_id: string;
+      penjual_nama: string | null;
+      penjual_kecamatan: string | null;
+      penjual_kelurahan: string | null;
+      penjual_foto_url: string | null;
+    }[]>`
+      SELECT
+        pm.id::text,
+        pm.nama,
+        pm.deskripsi,
+        pm.kategori,
+        pm.harga::text,
+        pm.stok,
+        pm.satuan,
+        pm.foto_url,
+        pm.created_at,
+        pm.penjual_id::text,
+        p.nama AS penjual_nama,
+        p.kecamatan AS penjual_kecamatan,
+        p.kelurahan AS penjual_kelurahan,
+        p.foto_url AS penjual_foto_url
+      FROM produk_marketplace pm
+      LEFT JOIN pengguna p ON p.id = pm.penjual_id
+      WHERE pm.id = ${produkId}::uuid
+        AND pm.is_aktif = true
+      LIMIT 1
+    `;
 
+    const produk = rows[0];
     if (!produk) throw { statusCode: 404, message: 'Produk tidak ditemukan' };
-    return produk;
+
+    return {
+      id: produk.id,
+      nama: produk.nama,
+      deskripsi: produk.deskripsi,
+      kategori: produk.kategori,
+      harga: Number(produk.harga),
+      stok: produk.stok,
+      satuan: produk.satuan,
+      foto_url: produk.foto_url,
+      foto_urls: produk.foto_url ? [produk.foto_url] : [],
+      created_at: produk.created_at,
+      penjual: {
+        id: produk.penjual_id,
+        nama_lengkap: produk.penjual_nama ?? 'Penjual',
+        nama: produk.penjual_nama ?? 'Penjual',
+        kecamatan: produk.penjual_kecamatan,
+        kelurahan: produk.penjual_kelurahan,
+        foto_profil_url: produk.penjual_foto_url,
+      },
+    };
   }
 
   /**
@@ -127,15 +238,13 @@ export class MarketplaceService {
     const produk = await this.app.prisma.produkMarketplace.create({
       data: {
         penjual_id: penjualId,
-        komoditas_id: dto.komoditas_id,
         nama: dto.nama,
         deskripsi: dto.deskripsi,
         harga: dto.harga,
         stok: dto.stok,
         satuan: dto.satuan,
-        foto_urls: dto.foto_urls,
+        foto_url: dto.foto_url ?? dto.foto_urls[0],
         kategori: dto.kategori,
-        berat_gram: dto.berat_gram,
       },
       select: { id: true },
     });
@@ -174,7 +283,7 @@ export class MarketplaceService {
     // Validasi semua produk & stok
     const produkIds = dto.items.map((i) => i.produk_id);
     const produkList = await prisma.produkMarketplace.findMany({
-      where: { id: { in: produkIds }, is_active: true },
+      where: { id: { in: produkIds }, is_aktif: true },
       select: { id: true, nama: true, harga: true, stok: true, satuan: true, penjual_id: true },
     });
 
@@ -201,10 +310,10 @@ export class MarketplaceService {
       const newPesanan = await tx.pesanan.create({
         data: {
           pembeli_id: pembeliId,
-          total_harga: totalHarga,
-          alamat_pengiriman: dto.alamat_pengiriman,
+          penjual_id: produkList[0].penjual_id,
+          total: totalHarga,
           catatan: dto.catatan,
-          status: 'MENUNGGU_PEMBAYARAN',
+          status: 'PENDING',
         },
         select: { id: true },
       });
@@ -217,9 +326,8 @@ export class MarketplaceService {
           data: {
             pesanan_id: newPesanan.id,
             produk_id: item.produk_id,
-            jumlah: item.jumlah,
+            qty: item.jumlah,
             harga_satuan: produk.harga,
-            subtotal: Number(produk.harga) * item.jumlah,
           },
         });
 
@@ -248,6 +356,7 @@ export class MarketplaceService {
     return {
       pesanan_id: pesanan.id,
       total_harga: totalHarga,
+      total: totalHarga,
       pesan: 'Pesanan berhasil dibuat',
     };
   }
@@ -266,12 +375,12 @@ export class MarketplaceService {
       orderBy: { created_at: 'desc' },
       take: 50,
       include: {
-        detail_pesanan: {
+        detail: {
           include: {
-            produk: { select: { id: true, nama: true, foto_urls: true } },
+            produk: { select: { id: true, nama: true, foto_url: true } },
           },
         },
-        transaksi: { select: { id: true, status: true, snap_token: true } },
+        pembayaran: { select: { id: true, status: true, snap_token: true } },
       },
     });
   }
