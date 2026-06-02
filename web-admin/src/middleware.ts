@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 
 // ============================================================
 // Next.js Middleware — Proteksi route dashboard
-// Semua halaman di bawah / (kecuali /auth/*) wajib login
+// Halaman publik dan /auth/* dapat diakses tanpa login; dashboard tetap wajib login.
 // ============================================================
 
 export default withAuth(
@@ -29,9 +29,10 @@ export default withAuth(
   },
   {
     callbacks: {
-      // Izinkan akses ke /auth/* tanpa login
+      // Izinkan akses halaman publik root dan /auth/* tanpa login
       authorized: ({ token, req }) => {
         const { pathname } = req.nextUrl;
+        if (pathname === '/') return true;
         if (pathname.startsWith('/auth/')) return true;
         // Semua route lain butuh token
         return !!token;

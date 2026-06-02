@@ -76,6 +76,37 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      animation: {
+        'fade-in-up': 'fadeInUp 0.6s ease-out both',
+        'fade-in-left': 'fadeInLeft 0.6s ease-out both',
+        'float': 'float 6s ease-in-out infinite',
+        'float-slow': 'float 8s ease-in-out infinite',
+        'pulse-dot': 'pulseDot 2s ease-in-out infinite',
+        'slide-down': 'slideDown 0.3s ease-out both',
+      },
+      keyframes: {
+        fadeInUp: {
+          '0%': { opacity: '0', transform: 'translateY(24px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        fadeInLeft: {
+          '0%': { opacity: '0', transform: 'translateX(-24px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        float: {
+          '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+          '33%': { transform: 'translateY(-12px) rotate(1deg)' },
+          '66%': { transform: 'translateY(6px) rotate(-1deg)' },
+        },
+        pulseDot: {
+          '0%, 100%': { transform: 'scale(1)', opacity: '1' },
+          '50%': { transform: 'scale(1.6)', opacity: '0.5' },
+        },
+        slideDown: {
+          '0%': { opacity: '0', transform: 'translateY(-12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
     },
   },
   plugins: [require('tailwindcss-animate')],

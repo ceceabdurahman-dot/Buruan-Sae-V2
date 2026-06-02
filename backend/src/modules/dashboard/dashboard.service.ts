@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { Prisma } from '@prisma/client';
 
 // ============================================================
 // Dashboard Service — KPI + Ringkasan + Export
@@ -39,7 +40,7 @@ export class DashboardService {
       mau,
     ] = await Promise.all([
       // Total petani aktif
-      this.app.prisma.pengguna.count({ where: { peran: 'PETANI', is_active: true, ...kecamatanFilter } }),
+      this.app.prisma.pengguna.count({ where: { peran: 'PETANI', is_aktif: true, ...kecamatanFilter } }),
 
       // Total lahan aktif
       this.app.prisma.lahan.count({ where: { status: 'AKTIF', ...kecamatanFilter } }),
@@ -49,8 +50,8 @@ export class DashboardService {
 
       // Total produksi bulan ini (kg)
       this.app.prisma.catatanPanen.aggregate({
-        where: { tgl_panen: { gte: bulanIni, lt: bulanDepan }, satuan: 'kg' },
-        _sum: { jumlah_panen: true },
+        where: { tanggal_panen: { gte: bulanIni, lt: bulanDepan }, satuan: 'kg' },
+        _sum: { jumlah: true },
       }),
 
       // Total pesanan bulan ini
@@ -59,23 +60,23 @@ export class DashboardService {
       // Total pendapatan (pesanan selesai)
       this.app.prisma.pesanan.aggregate({
         where: { created_at: { gte: bulanIni, lt: bulanDepan }, status: 'SELESAI' },
-        _sum: { total_harga: true },
+        _sum: { total: true },
       }),
 
       // Total booking agrowisata
-      this.app.prisma.bookingWisata.count({ where: { tgl_kunjungan: { gte: bulanIni, lt: bulanDepan }, status: 'SELESAI' } }),
+      this.app.prisma.bookingWisata.count({ where: { tanggal: { gte: bulanIni, lt: bulanDepan }, status: 'SELESAI' } }),
 
       // MAU dari Redis
-      redis.scard(`mau:${bulanIni.getFullYear()}-${String(bulanIni.getMonth() + 1).padStart(2, '0')}`),
+      redis.scard(`mau:${bulanIni.getFullYear()}${String(bulanIni.getMonth() + 1).padStart(2, '0')}`),
     ]);
 
     const result = {
       total_petani: totalPetani,
       total_lahan: totalLahan,
       total_lahan_m2: Number(totalLahanM2._sum.luas_m2 ?? 0),
-      total_produksi_kg: Number(totalProduksiKg._sum.jumlah_panen ?? 0),
+      total_produksi_kg: Number(totalProduksiKg._sum.jumlah ?? 0),
       total_pesanan: totalPesanan,
-      total_pendapatan: Number(totalPendapatan._sum.total_harga ?? 0),
+      total_pendapatan: Number(totalPendapatan._sum.total ?? 0),
       total_booking: totalBooking,
       mau,
       bulan: bulanIni.toISOString().slice(0, 7),
@@ -94,11 +95,11 @@ export class DashboardService {
     >`
       SELECT
         l.kecamatan,
-        EXTRACT(MONTH FROM cp.tgl_panen)::int AS bulan,
-        SUM(cp.jumlah_panen)::float AS total_kg
-      FROM "CatatanPanen" cp
-      JOIN "Lahan" l ON l.id = cp.lahan_id
-      WHERE EXTRACT(YEAR FROM cp.tgl_panen) = ${tahun}
+        EXTRACT(MONTH FROM cp.tanggal_panen)::int AS bulan,
+        SUM(cp.jumlah)::float AS total_kg
+      FROM catatan_panen cp
+      JOIN lahan l ON l.id = cp.lahan_id
+      WHERE EXTRACT(YEAR FROM cp.tanggal_panen) = ${tahun}
       AND cp.satuan = 'kg'
       GROUP BY l.kecamatan, bulan
       ORDER BY l.kecamatan, bulan
@@ -112,23 +113,27 @@ export class DashboardService {
    */
   async topPetani(bulan?: string) {
     const where: any = {};
+    let dateFilter = Prisma.empty;
     if (bulan) {
       const [tahun, bln] = bulan.split('-').map(Number);
-      where.tgl_panen = { gte: new Date(tahun, bln - 1, 1), lt: new Date(tahun, bln, 1) };
+      const start = new Date(tahun, bln - 1, 1);
+      const end = new Date(tahun, bln, 1);
+      where.tanggal_panen = { gte: start, lt: end };
+      dateFilter = Prisma.sql`WHERE cp.tanggal_panen >= ${start} AND cp.tanggal_panen < ${end}`;
     }
 
     return this.app.prisma.$queryRaw<
       { nama: string; kecamatan: string; total_panen: number; total_catatan: number }[]
     >`
       SELECT
-        p.nama_lengkap AS nama,
+        p.nama AS nama,
         p.kecamatan,
-        SUM(cp.jumlah_panen)::float AS total_panen,
+        SUM(cp.jumlah)::float AS total_panen,
         COUNT(cp.id)::int AS total_catatan
-      FROM "CatatanPanen" cp
-      JOIN "Pengguna" p ON p.id = cp.petani_id
-      ${bulan ? this.app.prisma.$queryRaw`WHERE cp.tgl_panen >= ${new Date(bulan + '-01')}` : this.app.prisma.$queryRaw``}
-      GROUP BY p.nama_lengkap, p.kecamatan
+      FROM catatan_panen cp
+      JOIN pengguna p ON p.id = cp.pengguna_id
+      ${dateFilter}
+      GROUP BY p.nama, p.kecamatan
       ORDER BY total_panen DESC
       LIMIT 10
     `;
@@ -146,7 +151,7 @@ export class DashboardService {
         COUNT(*)::int AS total_lahan,
         SUM(luas_m2)::float AS total_m2,
         COUNT(DISTINCT pemilik_id)::int AS total_petani
-      FROM "Lahan"
+      FROM lahan
       WHERE status = 'AKTIF'
       GROUP BY kecamatan
       ORDER BY total_lahan DESC
@@ -161,8 +166,8 @@ export class DashboardService {
       take: limit,
       orderBy: { created_at: 'desc' },
       select: {
-        id: true, aksi: true, entitas: true, created_at: true,
-        pengguna: { select: { nama_lengkap: true, peran: true } },
+        id: true, aksi: true, resource: true, created_at: true,
+        pengguna: { select: { nama: true, peran: true } },
       },
     });
   }
